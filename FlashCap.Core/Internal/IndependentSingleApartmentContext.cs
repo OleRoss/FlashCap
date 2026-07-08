@@ -14,11 +14,14 @@ using System;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FlashCap.Internal;
 
+
+[SupportedOSPlatform("windows")]
 internal sealed class IndependentSingleApartmentContext :
     SynchronizationContext, IDisposable
 {
@@ -113,7 +116,7 @@ internal sealed class IndependentSingleApartmentContext :
 
     public IndependentSingleApartmentContext()
     {
-        Debug.Assert(NativeMethods.CurrentPlatform == NativeMethods.Platforms.Windows);
+        Debug.Assert(OperatingSystem.IsWindows());
 
         this.thread = new(this.ThreadEntry);
         this.thread.IsBackground = true;

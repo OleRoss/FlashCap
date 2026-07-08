@@ -13,7 +13,6 @@ using FlashCap.Devices;
 using FlashCap.Internal;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace FlashCap;
@@ -30,19 +29,16 @@ public class CaptureDevices
     public CaptureDevices(BufferPool defaultBufferPool) =>
         this.DefaultBufferPool = defaultBufferPool;
 
-    protected virtual IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors() =>
-        NativeMethods.CurrentPlatform switch
-        {
-            NativeMethods.Platforms.Windows =>
-                new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors().
-                Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors()),
-            NativeMethods.Platforms.Linux =>
-                new V4L2Devices().OnEnumerateDescriptors(),
-            NativeMethods.Platforms.MacOS =>
-                new AVFoundationDevices().OnEnumerateDescriptors(),
-            _ =>
-                ArrayEx.Empty<CaptureDeviceDescriptor>(),
-        };
+    protected virtual IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
+    {
+        if (OperatingSystem.IsWindows())
+            return new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
+        if (OperatingSystem.IsLinux())
+            return new V4L2Devices(this.DefaultBufferPool).OnEnumerateDescriptors();
+        if (OperatingSystem.IsMacOS())
+            return new AVFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
+        return ArrayEx.Empty<CaptureDeviceDescriptor>();
+    }
 
     internal IEnumerable<CaptureDeviceDescriptor> InternalEnumerateDescriptors() =>
         this.OnEnumerateDescriptors();

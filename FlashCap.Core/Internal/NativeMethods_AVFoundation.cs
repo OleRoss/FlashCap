@@ -12,13 +12,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using FlashCap.Internal.AVFoundation;
 
 namespace FlashCap.Internal;
 
-internal static class NativeMethods_AVFoundation
+[SupportedOSPlatform("macos")]
+internal static partial class NativeMethods_AVFoundation
 {
     public static readonly Dictionary<PixelFormats, int> PixelFormatMap = new()
     {
@@ -33,23 +35,23 @@ internal static class NativeMethods_AVFoundation
         
     };
 
-    public static class Dlfcn
+    public static partial class Dlfcn
     {
         // Loads the framework
-        [DllImport("libdl.dylib", CharSet = CharSet.Ansi)]
-        public static extern IntPtr dlopen(string path, int mode);
+        [LibraryImport("libdl.dylib", EntryPoint = "dlopen", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr dlopen(string path, int mode);
         
-        [DllImport("libdl.dylib")]
-        public static extern IntPtr dlsym(IntPtr handle, string symbol);
+        [LibraryImport("libdl.dylib", EntryPoint = "dlsym", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr dlsym(IntPtr handle, string symbol);
         
-        [DllImport(LibSystem.Path, EntryPoint = "dlopen")]
-        public static extern IntPtr OpenLibrary(string path, Mode mode);
+        [LibraryImport(LibSystem.Path, EntryPoint = "dlopen", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr OpenLibrary(string path, Mode mode);
 
-        [DllImport(LibSystem.Path, EntryPoint = "dlsym")]
-        public static extern IntPtr GetSymbol(IntPtr handle, string symbol);
+        [LibraryImport(LibSystem.Path, EntryPoint = "dlsym", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr GetSymbol(IntPtr handle, string symbol);
 
         public static IntPtr GetSymbolIndirect(IntPtr handle, string symbol) =>
-            GetSymbol(LibAVFoundation.Handle, symbol) is var indirect && indirect != IntPtr.Zero
+            GetSymbol(handle, symbol) is var indirect && indirect != IntPtr.Zero
                 ? Marshal.ReadIntPtr(indirect)
                 : IntPtr.Zero;
 
@@ -61,14 +63,14 @@ internal static class NativeMethods_AVFoundation
         }
     }
 
-    public static class LibSystem
+    public static partial class LibSystem
     {
         public const string Path = "/usr/lib/libSystem.dylib";
 
         public static readonly IntPtr Handle = Dlfcn.OpenLibrary(Path, Dlfcn.Mode.None);
         
-        [DllImport(Path, EntryPoint = "dispatch_queue_create")]
-        public static extern IntPtr dispatch_queue_create(string label, IntPtr attr);
+        [LibraryImport(Path, EntryPoint = "dispatch_queue_create", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr dispatch_queue_create(string label, IntPtr attr);
 
         public static readonly bool IsOnArm64;
 
@@ -79,8 +81,8 @@ internal static class NativeMethods_AVFoundation
                 NXGetLocalArchInfo()->GetName()?.StartsWith("arm64", StringComparison.OrdinalIgnoreCase) is true;
         }
 
-        [DllImport(Path)]
-        private static extern unsafe NXArchInfo* NXGetLocalArchInfo();
+        [LibraryImport(Path, EntryPoint = "NXGetLocalArchInfo")]
+        private static unsafe partial NXArchInfo* NXGetLocalArchInfo();
 
         private enum NXByteOrder
         {
@@ -117,21 +119,21 @@ internal static class NativeMethods_AVFoundation
         }
     }
 
-    private static class LibC
+    private static partial class LibC
     {
         private const string Path = "/usr/lib/libc.dylib";
 
-        [DllImport(Path, EntryPoint = "dispatch_queue_create")]
-        public static extern IntPtr DispatchQueueCreate(string label, IntPtr attr);
+        [LibraryImport(Path, EntryPoint = "dispatch_queue_create", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr DispatchQueueCreate(string label, IntPtr attr);
 
-        [DllImport(Path, EntryPoint = "dispatch_release")]
-        public static extern IntPtr DispatchRelease(IntPtr o);
+        [LibraryImport(Path, EntryPoint = "dispatch_release")]
+        public static partial IntPtr DispatchRelease(IntPtr o);
 
-        [DllImport(Path, EntryPoint = "dispatch_retain")]
-        public static extern IntPtr DispatchRetain(IntPtr o);
+        [LibraryImport(Path, EntryPoint = "dispatch_retain")]
+        public static partial IntPtr DispatchRetain(IntPtr o);
     }
 
-    public static class LibObjC
+    public static partial class LibObjC
     {
         private const string Path = "/usr/lib/libobjc.A.dylib";
 
@@ -139,95 +141,98 @@ internal static class NativeMethods_AVFoundation
         public const string AllocSelector = "alloc";
         public const string ReleaseSelector = "release";
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern void SendNoResult(IntPtr receiver, IntPtr selector, bool arg1);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial void SendNoResult(IntPtr receiver, IntPtr selector, [MarshalAs(UnmanagedType.I1)] bool arg1);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern void SendNoResult(IntPtr receiver, IntPtr selector);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial void SendNoResult(IntPtr receiver, IntPtr selector);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern void SendNoResult(IntPtr receiver, IntPtr selector, IntPtr arg1);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial void SendNoResult(IntPtr receiver, IntPtr selector, IntPtr arg1);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern void SendNoResult(IntPtr receiver, IntPtr selector, LibCoreMedia.CMTime arg1);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial void SendNoResult(IntPtr receiver, IntPtr selector, LibCoreMedia.CMTime arg1);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern void SendNoResult(IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial void SendNoResult(IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern bool SendAndGetBool(IntPtr receiver, IntPtr selector);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static partial bool SendAndGetBool(IntPtr receiver, IntPtr selector);
         
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern bool SendAndGetBool(IntPtr receiver, IntPtr selector, IntPtr arg1);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static partial bool SendAndGetBool(IntPtr receiver, IntPtr selector, IntPtr arg1);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, IntPtr arg1);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, IntPtr arg1);
         
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, int arg1);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, int arg1);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2, long arg3);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial IntPtr SendAndGetHandle(IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2, long arg3);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend")]
-        public static extern LibCoreMedia.CMTime SendAndGetCMTime(IntPtr receiver, IntPtr selector);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend")]
+        public static partial LibCoreMedia.CMTime SendAndGetCMTime(IntPtr receiver, IntPtr selector);
 
-        [DllImport(Path, EntryPoint = "objc_msgSend_stret")]
-        public static extern void SendAndGetCMTimeStret(out LibCoreMedia.CMTime result, IntPtr receiver, IntPtr selector);
+        [LibraryImport(Path, EntryPoint = "objc_msgSend_stret")]
+        public static partial void SendAndGetCMTimeStret(out LibCoreMedia.CMTime result, IntPtr receiver, IntPtr selector);
 
-        [DllImport(Path, EntryPoint = "objc_getClass")]
-        public static extern IntPtr GetClass(string name);
+        [LibraryImport(Path, EntryPoint = "objc_getClass", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr GetClass(string name);
 
-        [DllImport(Path, EntryPoint = "object_getIvar")]
-        public static extern IntPtr GetVariable(IntPtr obj, IntPtr ivar);
+        [LibraryImport(Path, EntryPoint = "object_getIvar")]
+        public static partial IntPtr GetVariable(IntPtr obj, IntPtr ivar);
 
-        [DllImport(Path, EntryPoint = "object_setIvar")]
-        public static extern void SetVariable(IntPtr obj, IntPtr ivar, IntPtr value);
+        [LibraryImport(Path, EntryPoint = "object_setIvar")]
+        public static partial void SetVariable(IntPtr obj, IntPtr ivar, IntPtr value);
 
-        [DllImport(Path, EntryPoint = "objc_allocateClassPair")]
-        public static extern IntPtr AllocateClass(IntPtr superclass, string name, IntPtr extraBytes);
+        [LibraryImport(Path, EntryPoint = "objc_allocateClassPair", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr AllocateClass(IntPtr superclass, string name, IntPtr extraBytes);
 
-        [DllImport(Path, EntryPoint = "objc_registerClassPair")]
-        public static extern void RegisterClass(IntPtr cls);
+        [LibraryImport(Path, EntryPoint = "objc_registerClassPair")]
+        public static partial void RegisterClass(IntPtr cls);
 
-        [DllImport(Path, EntryPoint = "objc_getProtocol")]
-        public static extern IntPtr GetProtocol(string name);
+        [LibraryImport(Path, EntryPoint = "objc_getProtocol", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr GetProtocol(string name);
 
-        [DllImport(Path, EntryPoint = "sel_registerName")]
-        public static extern IntPtr GetSelector(string name);
+        [LibraryImport(Path, EntryPoint = "sel_registerName", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr GetSelector(string name);
 
-        [DllImport(Path, EntryPoint = "class_addMethod")]
+        [LibraryImport(Path, EntryPoint = "class_addMethod", StringMarshalling = StringMarshalling.Utf8)]
         [return: MarshalAs(UnmanagedType.U1)]
-        public static extern bool AddMethod(IntPtr cls, IntPtr name, IntPtr imp, string types);
+        public static partial bool AddMethod(IntPtr cls, IntPtr name, IntPtr imp, string types);
 
-        [DllImport(Path, EntryPoint = "class_addIvar")]
+        [LibraryImport(Path, EntryPoint = "class_addIvar", StringMarshalling = StringMarshalling.Utf8)]
         [return: MarshalAs(UnmanagedType.U1)]
-        public static extern void AddVariable(IntPtr cls, string name, IntPtr size, byte alignment, string types);
+        public static partial void AddVariable(IntPtr cls, string name, IntPtr size, byte alignment, string types);
 
-        [DllImport(Path, EntryPoint = "class_addProtocol")]
+        [LibraryImport(Path, EntryPoint = "class_addProtocol")]
         [return: MarshalAs(UnmanagedType.U1)]
-        public static extern bool AddProtocol(IntPtr cls, IntPtr protocol);
+        public static partial bool AddProtocol(IntPtr cls, IntPtr protocol);
 
-        [DllImport(Path, EntryPoint = "class_getInstanceVariable")]
-        public static extern IntPtr GetVariable(IntPtr cls, string name);
+        [LibraryImport(Path, EntryPoint = "class_getInstanceVariable", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr GetVariable(IntPtr cls, string name);
         
-        [DllImport(Path, EntryPoint = "objc_allocateClassPair")]
-        public static extern IntPtr objc_allocateClassPair(IntPtr superClass, string name, IntPtr extraBytes);
+        [LibraryImport(Path, EntryPoint = "objc_allocateClassPair", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr objc_allocateClassPair(IntPtr superClass, string name, IntPtr extraBytes);
 
-        [DllImport(Path, EntryPoint = "class_addMethod")]
-        public static extern bool class_addMethod(IntPtr cls, IntPtr sel, IntPtr imp, string types);
+        [LibraryImport(Path, EntryPoint = "class_addMethod", StringMarshalling = StringMarshalling.Utf8)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        public static partial bool class_addMethod(IntPtr cls, IntPtr sel, IntPtr imp, string types);
         
-        [DllImport(Path, EntryPoint = "objc_registerClassPair")]
-        public static extern void objc_registerClassPair(IntPtr cls);
+        [LibraryImport(Path, EntryPoint = "objc_registerClassPair")]
+        public static partial void objc_registerClassPair(IntPtr cls);
         
-        [DllImport(Path, EntryPoint = "dispatch_queue_create")]
-        public static extern IntPtr dispatch_queue_create(string label, IntPtr attr);
+        [LibraryImport(Path, EntryPoint = "dispatch_queue_create", StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr dispatch_queue_create(string label, IntPtr attr);
         
         [Flags]
         public enum BlockFlags
@@ -423,7 +428,7 @@ internal static class NativeMethods_AVFoundation
         }
     }
 
-    public static class LibCoreFoundation
+    public static partial class LibCoreFoundation
     {
         private const string Path = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
 
@@ -432,45 +437,54 @@ internal static class NativeMethods_AVFoundation
         public static readonly IntPtr kCFCopyStringDictionaryKeyCallBacks = Dlfcn.GetSymbolIndirect(Handle, "kCFCopyStringDictionaryKeyCallBacks");
         public static readonly IntPtr kCFTypeDictionaryValueCallBacks = Dlfcn.GetSymbolIndirect(Handle, "kCFTypeDictionaryValueCallBacks");
 
-        [DllImport(Path)]
-        public static extern void CFRelease(IntPtr cf);
+        [LibraryImport(Path, EntryPoint = "CFRelease")]
+        public static partial void CFRelease(IntPtr cf);
         
-        [DllImport(Path)]
-        public static extern IntPtr CFGetTypeID(IntPtr cf);
+        [LibraryImport(Path, EntryPoint = "CFGetTypeID")]
+        public static partial IntPtr CFGetTypeID(IntPtr cf);
 
-        [DllImport(Path)]
-        public static extern void CFRetain(IntPtr cf);
+        [LibraryImport(Path, EntryPoint = "CFRetain")]
+        public static partial void CFRetain(IntPtr cf);
 
-        [DllImport(Path)]
-        public static extern IntPtr CFArrayCreate(IntPtr allocator, IntPtr values, nint numValues, IntPtr callBacks);
+        [LibraryImport(Path, EntryPoint = "CFArrayCreate")]
+        public static partial IntPtr CFArrayCreate(IntPtr allocator, IntPtr values, nint numValues, IntPtr callBacks);
 
-        [DllImport(Path)]
-        public static extern IntPtr CFArrayGetCount(IntPtr theArray);
+        [LibraryImport(Path, EntryPoint = "CFArrayGetCount")]
+        public static partial IntPtr CFArrayGetCount(IntPtr theArray);
 
-        [DllImport(Path)]
-        public static extern void CFArrayGetValues(IntPtr theArray, CFRange range, IntPtr values);
+        [LibraryImport(Path, EntryPoint = "CFArrayGetValues")]
+        public static partial void CFArrayGetValues(IntPtr theArray, CFRange range, IntPtr values);
 
-        [DllImport(Path)]
-        public static extern IntPtr CFStringGetLength(IntPtr theString);
+        [LibraryImport(Path, EntryPoint = "CFStringGetLength")]
+        public static partial IntPtr CFStringGetLength(IntPtr theString);
 
-        [DllImport(Path)]
-        public static extern unsafe char* CFStringGetCharactersPtr(IntPtr theString);
+        [LibraryImport(Path, EntryPoint = "CFStringGetCharactersPtr")]
+        public static unsafe partial char* CFStringGetCharactersPtr(IntPtr theString);
 
-        [DllImport(Path)]
-        public static extern unsafe void CFStringGetCharacters(IntPtr theString, CFRange range, char* buffer);
+        [LibraryImport(Path, EntryPoint = "CFStringGetCharacters")]
+        public static unsafe partial void CFStringGetCharacters(IntPtr theString, CFRange range, char* buffer);
 
-        [DllImport(Path)]
-        public static extern unsafe IntPtr CFStringCreateWithCharacters(IntPtr allocator, char* str, nint count);
+        [LibraryImport(Path, EntryPoint = "CFStringCreateWithCharacters")]
+        public static unsafe partial IntPtr CFStringCreateWithCharacters(IntPtr allocator, char* str, nint count);
 
-        [DllImport(Path)]
-        public static extern unsafe IntPtr CFNumberCreate(IntPtr allocator, CFNumberType theType, void* valuePtr);
+        [LibraryImport(Path, EntryPoint = "CFNumberCreate")]
+        public static unsafe partial IntPtr CFNumberCreate(IntPtr allocator, CFNumberType theType, void* valuePtr);
 
-        [DllImport(Path)]
+        [LibraryImport(Path, EntryPoint = "CFNumberGetValue")]
         [return: MarshalAs(UnmanagedType.U1)]
-        public static extern unsafe bool CFNumberGetValue(IntPtr number, CFNumberType theType, void* valuePtr);
+        public static unsafe partial bool CFNumberGetValue(IntPtr number, CFNumberType theType, void* valuePtr);
 
-        [DllImport(Path)]
-        public static extern unsafe IntPtr CFDictionaryCreate(IntPtr allocator, IntPtr[] keys, IntPtr[] values, nint numValues, IntPtr keyCallBacks, IntPtr valueCallBacks);
+        [LibraryImport(Path, EntryPoint = "CFDictionaryCreate")]
+        private static unsafe partial IntPtr CFDictionaryCreate(IntPtr allocator, IntPtr* keys, IntPtr* values, nint numValues, IntPtr keyCallBacks, IntPtr valueCallBacks);
+
+        public static unsafe IntPtr CFDictionaryCreate(IntPtr allocator, IntPtr[] keys, IntPtr[] values, nint numValues, IntPtr keyCallBacks, IntPtr valueCallBacks)
+        {
+            fixed (IntPtr* keysPointer = keys)
+            fixed (IntPtr* valuesPointer = values)
+            {
+                return CFDictionaryCreate(allocator, keysPointer, valuesPointer, numValues, keyCallBacks, valueCallBacks);
+            }
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct CFRange
@@ -633,18 +647,18 @@ internal static class NativeMethods_AVFoundation
         InsufficientSpace			= -12708,
     }
 
-    public static class LibCoreMedia
+    public static partial class LibCoreMedia
     {
         private const string Path = "/System/Library/Frameworks/CoreMedia.framework/CoreMedia";
 
-        [DllImport(Path)]
-        public static extern IntPtr CMSampleBufferGetAttachments(IntPtr sampleBuffer, int makeWritable);
+        [LibraryImport(Path, EntryPoint = "CMSampleBufferGetAttachments")]
+        public static partial IntPtr CMSampleBufferGetAttachments(IntPtr sampleBuffer, int makeWritable);
 
-        [DllImport(Path)]
-        public static extern IntPtr CMGetAttachment(IntPtr target, IntPtr key, out CMAttachmentMode attachmentMode);
+        [LibraryImport(Path, EntryPoint = "CMGetAttachment")]
+        public static partial IntPtr CMGetAttachment(IntPtr target, IntPtr key, out CMAttachmentMode attachmentMode);
 
-        [DllImport(Path, EntryPoint = "CMFormatDescriptionGetMediaType", CallingConvention = CallingConvention.Cdecl)]
-        public static extern uint CmFormatDescriptionGetMediaTypeIntCode(IntPtr formatDescription);
+        [LibraryImport(Path, EntryPoint = "CMFormatDescriptionGetMediaType")]
+        public static partial uint CmFormatDescriptionGetMediaTypeIntCode(IntPtr formatDescription);
         
         // Add this enum
         public enum CMAttachmentMode
@@ -656,44 +670,45 @@ internal static class NativeMethods_AVFoundation
         // Add this constant
         public static readonly FourCharCode kCMMediaType_Video = new FourCharCode('v', 'i', 'd', 'e');
         
-        [DllImport(Path)]
-        public static extern CMTime CMTimeMake(long value, int timescale);
+        [LibraryImport(Path, EntryPoint = "CMTimeMake")]
+        public static partial CMTime CMTimeMake(long value, int timescale);
 
-        [DllImport(Path)]
-        public static extern double CMTimeGetSeconds(CMTime time);
+        [LibraryImport(Path, EntryPoint = "CMTimeGetSeconds")]
+        public static partial double CMTimeGetSeconds(CMTime time);
 
-        [DllImport(Path)]
-        public static extern IntPtr CMSampleBufferGetImageBuffer(IntPtr sbuf);
+        [LibraryImport(Path, EntryPoint = "CMSampleBufferGetImageBuffer")]
+        public static partial IntPtr CMSampleBufferGetImageBuffer(IntPtr sbuf);
         
-        [DllImport(Path)]
-        public static extern IntPtr CMSampleBufferGetDataBuffer(IntPtr sbuf);
+        [LibraryImport(Path, EntryPoint = "CMSampleBufferGetDataBuffer")]
+        public static partial IntPtr CMSampleBufferGetDataBuffer(IntPtr sbuf);
         
-        [DllImport(Path)]
-        public static extern bool CMSampleBufferIsValid(IntPtr sbuf);
+        [LibraryImport(Path, EntryPoint = "CMSampleBufferIsValid")]
+        [return: MarshalAs(UnmanagedType.U1)]
+        public static partial bool CMSampleBufferIsValid(IntPtr sbuf);
         
-        [DllImport(Path)]
-        public static extern IntPtr CMSampleBufferGetFormatDescription(IntPtr sbuf);
+        [LibraryImport(Path, EntryPoint = "CMSampleBufferGetFormatDescription")]
+        public static partial IntPtr CMSampleBufferGetFormatDescription(IntPtr sbuf);
 
-        [DllImport(Path)]
-        public static extern CMTime CMSampleBufferGetDecodeTimeStamp(IntPtr sbuf);
+        [LibraryImport(Path, EntryPoint = "CMSampleBufferGetDecodeTimeStamp")]
+        public static partial CMTime CMSampleBufferGetDecodeTimeStamp(IntPtr sbuf);
         
-        [DllImport(Path)]
-        public static extern CMBlockBufferError CMBlockBufferGetDataPointer(IntPtr theBuffer, nuint offset, out IntPtr lengthAtOffset, out IntPtr totalLength, out IntPtr dataPointer);
+        [LibraryImport(Path, EntryPoint = "CMBlockBufferGetDataPointer")]
+        public static partial CMBlockBufferError CMBlockBufferGetDataPointer(IntPtr theBuffer, nuint offset, out IntPtr lengthAtOffset, out IntPtr totalLength, out IntPtr dataPointer);
 
-        [DllImport(Path)]
-        public static extern nuint CMBlockBufferGetDataLength(IntPtr theBuffer);
+        [LibraryImport(Path, EntryPoint = "CMBlockBufferGetDataLength")]
+        public static partial nuint CMBlockBufferGetDataLength(IntPtr theBuffer);
         
-        [DllImport(Path, CallingConvention = CallingConvention.Cdecl)]
-        public static extern CMMediaType CMFormatDescriptionGetMediaType(IntPtr desc);
+        [LibraryImport(Path, EntryPoint = "CMFormatDescriptionGetMediaType")]
+        public static partial CMMediaType CMFormatDescriptionGetMediaType(IntPtr desc);
 
-        [DllImport(Path)]
-        public static extern IntPtr CMSampleBufferGetSampleAttachmentsArray(IntPtr sampleBuffer, bool createIfNecessary);
+        [LibraryImport(Path, EntryPoint = "CMSampleBufferGetSampleAttachmentsArray")]
+        public static partial IntPtr CMSampleBufferGetSampleAttachmentsArray(IntPtr sampleBuffer, [MarshalAs(UnmanagedType.U1)] bool createIfNecessary);
         
-        [DllImport(Path)]
-        public static extern uint CMFormatDescriptionGetMediaSubType(IntPtr desc);
+        [LibraryImport(Path, EntryPoint = "CMFormatDescriptionGetMediaSubType")]
+        public static partial uint CMFormatDescriptionGetMediaSubType(IntPtr desc);
 
-        [DllImport(Path)]
-        public static extern CMVideoDimensions CMVideoFormatDescriptionGetDimensions(IntPtr videoDesc);
+        [LibraryImport(Path, EntryPoint = "CMVideoFormatDescriptionGetDimensions")]
+        public static partial CMVideoDimensions CMVideoFormatDescriptionGetDimensions(IntPtr videoDesc);
 
         public enum CMMediaType : uint
         {
@@ -760,7 +775,7 @@ internal static class NativeMethods_AVFoundation
         }
     }
 
-    public static class LibCoreVideo
+    public static partial class LibCoreVideo
     {
         private const string Path = "/System/Library/Frameworks/CoreVideo.framework/CoreVideo";
         
@@ -771,20 +786,20 @@ internal static class NativeMethods_AVFoundation
 
         public static readonly IntPtr kCVPixelBufferMetalCompatibilityKey = Dlfcn.GetSymbolIndirect(Handle, "kCVPixelBufferMetalCompatibilityKey");
 
-        [DllImport(Path)]
-        public static extern nuint CVPixelBufferGetDataSize(IntPtr pixelBuffer);
+        [LibraryImport(Path, EntryPoint = "CVPixelBufferGetDataSize")]
+        public static partial nuint CVPixelBufferGetDataSize(IntPtr pixelBuffer);
 
-        [DllImport(Path)]
-        public static extern nuint CVPixelBufferGetPlaneCount(IntPtr pixelBuffer);
+        [LibraryImport(Path, EntryPoint = "CVPixelBufferGetPlaneCount")]
+        public static partial nuint CVPixelBufferGetPlaneCount(IntPtr pixelBuffer);
 
-        [DllImport(Path)]
-        public static extern IntPtr CVPixelBufferGetBaseAddress(IntPtr pixelBuffer);
+        [LibraryImport(Path, EntryPoint = "CVPixelBufferGetBaseAddress")]
+        public static partial IntPtr CVPixelBufferGetBaseAddress(IntPtr pixelBuffer);
 
-        [DllImport(Path)]
-        public static extern int CVPixelBufferLockBaseAddress(IntPtr pixelBuffer, PixelBufferLockFlags lockFlags);
+        [LibraryImport(Path, EntryPoint = "CVPixelBufferLockBaseAddress")]
+        public static partial int CVPixelBufferLockBaseAddress(IntPtr pixelBuffer, PixelBufferLockFlags lockFlags);
 
-        [DllImport(Path)]
-        public static extern int CVPixelBufferUnlockBaseAddress(IntPtr pixelBuffer, PixelBufferLockFlags lockFlags);
+        [LibraryImport(Path, EntryPoint = "CVPixelBufferUnlockBaseAddress")]
+        public static partial int CVPixelBufferUnlockBaseAddress(IntPtr pixelBuffer, PixelBufferLockFlags lockFlags);
 
         public enum PixelBufferLockFlags : long
         {

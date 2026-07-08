@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using FlashCap.Internal;
 using FlashCap.Utilities;
@@ -18,6 +19,7 @@ using static FlashCap.Internal.AVFoundation.LibAVFoundation;
 
 namespace FlashCap.Devices;
 
+[SupportedOSPlatform("macos")]
 public sealed class AVFoundationDevices : CaptureDevices
 {
     public AVFoundationDevices() :

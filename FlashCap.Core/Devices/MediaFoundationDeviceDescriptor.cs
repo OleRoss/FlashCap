@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 //
 // FlashCap - Independent camera capture library.
 // Copyright (c) Kouji Matsui (@kekyo@mi.kekyo.net)
@@ -7,27 +7,31 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FlashCap.Devices;
 
-public sealed class DirectShowDeviceDescriptor : CaptureDeviceDescriptor
+[SupportedOSPlatform("windows")]
+public sealed class MediaFoundationDeviceDescriptor : CaptureDeviceDescriptor
 {
-    private readonly string devicePath;
+    private readonly string symbolicLink;
 
-    internal DirectShowDeviceDescriptor(
-        string devicePath, string name, string description,
+    internal MediaFoundationDeviceDescriptor(
+        string symbolicLink,
+        string name,
+        string description,
         VideoCharacteristics[] characteristics,
         BufferPool defaultBufferPool) :
         base(name, description, characteristics, defaultBufferPool) =>
-        this.devicePath = devicePath;
+        this.symbolicLink = symbolicLink;
 
     public override object Identity =>
-        this.devicePath;
+        this.symbolicLink;
 
     public override DeviceTypes DeviceType =>
-        DeviceTypes.DirectShow;
+        DeviceTypes.MediaFoundation;
 
     protected override Task<CaptureDevice> OnOpenWithFrameProcessorAsync(
         VideoCharacteristics characteristics,
@@ -35,6 +39,9 @@ public sealed class DirectShowDeviceDescriptor : CaptureDeviceDescriptor
         FrameProcessor frameProcessor,
         CancellationToken ct) =>
         this.InternalOnOpenWithFrameProcessorAsync(
-            new DirectShowDevice(this.devicePath, this.Name),
-            characteristics, transcodeFormat, frameProcessor, ct);
+            new MediaFoundationDevice(this.symbolicLink, this.Name),
+            characteristics,
+            transcodeFormat,
+            frameProcessor,
+            ct);
 }

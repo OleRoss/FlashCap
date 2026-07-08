@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using FlashCap.Internal.V4L2;
 using FlashCap.Utilities;
 
@@ -18,13 +19,14 @@ using static FlashCap.Internal.V4L2.NativeMethods_V4L2_Interop;
 
 namespace FlashCap.Internal;
 
-internal static class NativeMethods_V4L2
+[SupportedOSPlatform("linux")]
+internal static partial class NativeMethods_V4L2
 {
     public static readonly NativeMethods_V4L2_Interop Interop;
 
     private static readonly Dictionary<uint, PixelFormats> pixelFormats = new();
 
-    static NativeMethods_V4L2()
+    static unsafe NativeMethods_V4L2()
     {
         utsname buf;
         while (uname(out buf) != 0)
@@ -36,7 +38,8 @@ internal static class NativeMethods_V4L2
             }
         }
 
-        switch (buf.machine)
+        var machine = buf.GetMachine();
+        switch (machine)
         {
             case "x86_64":
             case "amd64":
@@ -66,7 +69,7 @@ internal static class NativeMethods_V4L2
                 break;
             default:
                 throw new InvalidOperationException(
-                    $"FlashCap: Architecture '{buf.machine}' is not supported.");
+                    $"FlashCap: Architecture '{machine}' is not supported.");
         }
 
         pixelFormats.Add((uint)NativeMethods.Compression.BI_RGB, PixelFormats.RGB24);
@@ -115,23 +118,49 @@ internal static class NativeMethods_V4L2
         O_RDWR = 2,
     }
 
-    [DllImport("libc", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    public static extern int open(
-        [MarshalAs(UnmanagedType.LPStr)] string pathname, OPENBITS flag);
+    [LibraryImport("libc", EntryPoint = "open", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
+    public static partial int open(
+        string pathname, OPENBITS flag);
 
-    [DllImport("libc", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    public static extern int read(
-        int fd, byte[] buffer, int length);
+    [LibraryImport("libc", EntryPoint = "read", SetLastError = true)]
+    private static unsafe partial int read(
+        int fd, byte* buffer, int length);
 
-    [DllImport("libc", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    public static extern int write(
-        int fd, byte[] buffer, int count);
+    public static unsafe int read(
+        int fd, byte[] buffer, int length)
+    {
+        fixed (byte* bufferPointer = buffer)
+        {
+            return read(fd, bufferPointer, length);
+        }
+    }
 
-    [DllImport("libc", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    public static extern int close(int fd);
+    [LibraryImport("libc", EntryPoint = "write", SetLastError = true)]
+    private static unsafe partial int write(
+        int fd, byte* buffer, int count);
 
-    [DllImport("libc", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    public static extern int pipe(int[] filedes);
+    public static unsafe int write(
+        int fd, byte[] buffer, int count)
+    {
+        fixed (byte* bufferPointer = buffer)
+        {
+            return write(fd, bufferPointer, count);
+        }
+    }
+
+    [LibraryImport("libc", EntryPoint = "close", SetLastError = true)]
+    public static partial int close(int fd);
+
+    [LibraryImport("libc", EntryPoint = "pipe", SetLastError = true)]
+    private static unsafe partial int pipe(int* filedes);
+
+    public static unsafe int pipe(int[] filedes)
+    {
+        fixed (int* filedesPointer = filedes)
+        {
+            return pipe(filedesPointer);
+        }
+    }
 
     [Flags]
     public enum POLLBITS : short
@@ -159,9 +188,18 @@ internal static class NativeMethods_V4L2
         public POLLBITS revents;
     }
 
-    [DllImport("libc", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    public static extern int poll(
-        [In, Out] pollfd[] fds, int nfds, int timeout);
+    [LibraryImport("libc", EntryPoint = "poll", SetLastError = true)]
+    private static unsafe partial int poll(
+        pollfd* fds, int nfds, int timeout);
+
+    public static unsafe int poll(
+        pollfd[] fds, int nfds, int timeout)
+    {
+        fixed (pollfd* fdsPointer = fds)
+        {
+            return poll(fdsPointer, nfds, timeout);
+        }
+    }
 
     [Flags]
     public enum PROT
@@ -181,17 +219,17 @@ internal static class NativeMethods_V4L2
 
     public static readonly IntPtr MAP_FAILED = (IntPtr)(-1);
 
-    [DllImport("libc", EntryPoint = "mmap", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    private static extern IntPtr mmap3232(
+    [LibraryImport("libc", EntryPoint = "mmap", SetLastError = true)]
+    private static partial IntPtr mmap3232(
         IntPtr addr, uint length, PROT prot, MAP flags, int fd, int offset);
-    [DllImport("libc", EntryPoint = "mmap", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    private static extern IntPtr mmap3264(
+    [LibraryImport("libc", EntryPoint = "mmap", SetLastError = true)]
+    private static partial IntPtr mmap3264(
         IntPtr addr, uint length, PROT prot, MAP flags, int fd, long offset);
-    [DllImport("libc", EntryPoint = "mmap", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    private static extern IntPtr mmap6432(
+    [LibraryImport("libc", EntryPoint = "mmap", SetLastError = true)]
+    private static partial IntPtr mmap6432(
         IntPtr addr, ulong length, PROT prot, MAP flags, int fd, int offset);
-    [DllImport("libc", EntryPoint = "mmap", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    private static extern IntPtr mmap6464(
+    [LibraryImport("libc", EntryPoint = "mmap", SetLastError = true)]
+    private static partial IntPtr mmap6464(
         IntPtr addr, ulong length, PROT prot, MAP flags, int fd, long offset);
 
     public static IntPtr mmap(
@@ -221,11 +259,11 @@ internal static class NativeMethods_V4L2
         }
     }
 
-    [DllImport("libc", EntryPoint = "munmap", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    private static extern int munmap32(
+    [LibraryImport("libc", EntryPoint = "munmap", SetLastError = true)]
+    private static partial int munmap32(
         IntPtr addr, uint length);
-    [DllImport("libc", EntryPoint = "munmap", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    private static extern int munmap64(
+    [LibraryImport("libc", EntryPoint = "munmap", SetLastError = true)]
+    private static partial int munmap64(
         IntPtr addr, ulong length);
 
     public static int munmap(
@@ -241,8 +279,8 @@ internal static class NativeMethods_V4L2
         }
     }
 
-    [DllImport("libc", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    private static extern int ioctl(
+    [LibraryImport("libc", EntryPoint = "ioctl", SetLastError = true)]
+    private static partial int ioctl(
         int fd, UIntPtr request, IntPtr arg);
 
     public static int ioctl<T>(int fd, uint request, T arg)
@@ -270,18 +308,26 @@ internal static class NativeMethods_V4L2
     private const int _UTSNAME_LENGTH = 65;
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct utsname
+    public unsafe struct utsname
     {
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = _UTSNAME_LENGTH)] public string sysname;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = _UTSNAME_LENGTH)] public string nodename;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = _UTSNAME_LENGTH)] public string release;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = _UTSNAME_LENGTH)] public string version;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = _UTSNAME_LENGTH)] public string machine;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = _UTSNAME_LENGTH)] public string domainname;
+        public fixed byte sysname[_UTSNAME_LENGTH];
+        public fixed byte nodename[_UTSNAME_LENGTH];
+        public fixed byte release[_UTSNAME_LENGTH];
+        public fixed byte version[_UTSNAME_LENGTH];
+        public fixed byte machine[_UTSNAME_LENGTH];
+        public fixed byte domainname[_UTSNAME_LENGTH];
+
+        public string GetMachine()
+        {
+            fixed (byte* machinePointer = this.machine)
+            {
+                return Marshal.PtrToStringAnsi((IntPtr)machinePointer) ?? string.Empty;
+            }
+        }
     }
 
-    [DllImport("libc", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
-    public static extern int uname(out utsname buf);
+    [LibraryImport("libc", EntryPoint = "uname", SetLastError = true)]
+    public static partial int uname(out utsname buf);
     
     ///////////////////////////////////////////////////////////
 

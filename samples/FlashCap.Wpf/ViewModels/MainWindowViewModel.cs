@@ -75,7 +75,7 @@ public sealed class MainWindowViewModel
 
             foreach (var descriptor in devices.EnumerateDescriptors().
                 // You could filter by device type and characteristics.
-                //Where(d => d.DeviceType == DeviceTypes.DirectShow).  // Only DirectShow device.
+                //Where(d => d.DeviceType == DeviceTypes.MediaFoundation).  // Only Media Foundation device.
                 Where(d => d.Characteristics.Length >= 1))             // One or more valid video characteristics.
             {
                 this.DeviceList.Add(descriptor);

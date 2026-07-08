@@ -37,7 +37,7 @@ public partial class MainForm : Form
         var devices = new CaptureDevices();
         var descriptors = devices.EnumerateDescriptors().
             // You could filter by device type and characteristics.
-            //Where(d => d.DeviceType == DeviceTypes.DirectShow).  // Only DirectShow device.
+            //Where(d => d.DeviceType == DeviceTypes.MediaFoundation).  // Only Media Foundation device.
             Where(d => d.Characteristics.Length >= 1).             // One or more valid video characteristics.
             ToArray();
 

@@ -9,8 +9,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
@@ -19,7 +17,7 @@ using FlashCap.Utilities;
 namespace FlashCap.Internal;
 
 [SuppressUnmanagedCodeSecurity]
-internal static class NativeMethods
+internal static partial class NativeMethods
 {
     // https://stackoverflow.com/questions/38790802/determine-operating-system-in-net-core
     public enum Platforms
@@ -30,74 +28,40 @@ internal static class NativeMethods
         Other,
     }
 
-    private static Platforms GetRuntimePlatform()
-    {
-        var windir = Environment.GetEnvironmentVariable("windir");
-        if (!string.IsNullOrEmpty(windir) &&
-            windir.Contains(Path.DirectorySeparatorChar.ToString()) &&
-            Directory.Exists(windir))
-        {
-            return Platforms.Windows;
-        }
-        else if (File.Exists(@"/proc/sys/kernel/ostype"))
-        {
-            var osType = File.ReadAllText(@"/proc/sys/kernel/ostype");
-            if (osType.StartsWith("Linux", StringComparison.OrdinalIgnoreCase))
-            {
-                return Platforms.Linux;
-            }
-            else
-            {
-                return Platforms.Other;
-            }
-        }
-        else if (File.Exists(@"/System/Library/CoreServices/SystemVersion.plist"))
-        {
-            return Platforms.MacOS;
-        }
-        else
-        {
-            return Platforms.Other;
-        }
-    }
-
-    public static readonly Platforms CurrentPlatform =
-        GetRuntimePlatform();
-
     ////////////////////////////////////////////////////////////////////////
 
     // https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa366535(v=vs.85)
-    [DllImport("ntdll")]
-    private static extern void RtlCopyMemory(IntPtr dest, IntPtr src, IntPtr length);
-    [DllImport("kernel32")]
-    private static extern void RtlMoveMemory(IntPtr dest, IntPtr src, IntPtr length);
+    [LibraryImport("ntdll", EntryPoint = "RtlCopyMemory")]
+    private static partial void RtlCopyMemory(IntPtr dest, IntPtr src, IntPtr length);
+    [LibraryImport("kernel32", EntryPoint = "RtlMoveMemory")]
+    private static partial void RtlMoveMemory(IntPtr dest, IntPtr src, IntPtr length);
 
-    [DllImport("libc")]
-    private static extern void memcpy(IntPtr dest, IntPtr src, IntPtr length);
+    [LibraryImport("libc", EntryPoint = "memcpy")]
+    private static partial void memcpy(IntPtr dest, IntPtr src, IntPtr length);
 
     public delegate void CopyMemoryDelegate(
         IntPtr pDestination, IntPtr pSource, IntPtr length);
 
     public static unsafe readonly CopyMemoryDelegate CopyMemory =
-        CurrentPlatform == Platforms.Windows ?
+        OperatingSystem.IsWindows() ?
             (IntPtr.Size == 4 ? RtlMoveMemory : RtlCopyMemory) :
             memcpy;
 
     ////////////////////////////////////////////////////////////////////////
 
-    [DllImport("ole32")]
-    private static extern IntPtr CoTaskMemAlloc(IntPtr size);
-    [DllImport("ole32")]
-    private static extern void CoTaskMemFree(IntPtr ptr);
-    [DllImport("kernel32")]
-    private static extern void RtlZeroMemory(IntPtr ptr, IntPtr size);
+    [LibraryImport("ole32", EntryPoint = "CoTaskMemAlloc")]
+    private static partial IntPtr CoTaskMemAlloc(IntPtr size);
+    [LibraryImport("ole32", EntryPoint = "CoTaskMemFree")]
+    private static partial void CoTaskMemFree(IntPtr ptr);
+    [LibraryImport("kernel32", EntryPoint = "RtlZeroMemory")]
+    private static partial void RtlZeroMemory(IntPtr ptr, IntPtr size);
 
-    [DllImport("libc")]
-    private static extern IntPtr malloc(IntPtr size);
-    [DllImport("libc")]
-    private static extern void free(IntPtr ptr);
-    [DllImport("libc")]
-    private static extern IntPtr memset(IntPtr ptr, int c, IntPtr size);
+    [LibraryImport("libc", EntryPoint = "malloc")]
+    private static partial IntPtr malloc(IntPtr size);
+    [LibraryImport("libc", EntryPoint = "free")]
+    private static partial void free(IntPtr ptr);
+    [LibraryImport("libc", EntryPoint = "memset")]
+    private static partial IntPtr memset(IntPtr ptr, int c, IntPtr size);
 
     public delegate IntPtr AllocateMemoryDelegate(
         IntPtr size);
@@ -118,10 +82,10 @@ internal static class NativeMethods
     }
 
     public static readonly AllocateMemoryDelegate AllocateMemory =
-        CurrentPlatform == Platforms.Windows ?
+        OperatingSystem.IsWindows() ?
             AllocateWindows : AllocatePosix;
     public static readonly FreeMemoryDelegate FreeMemory =
-        CurrentPlatform == Platforms.Windows ?
+        OperatingSystem.IsWindows() ?
             CoTaskMemFree : free;
 
     ////////////////////////////////////////////////////////////////////////
@@ -135,12 +99,12 @@ internal static class NativeMethods
         SPEED_OVER_MEMORY = 8,
     }
 
-    [DllImport("ole32", SetLastError=true)]
-    public static extern int CoInitializeEx(
+    [LibraryImport("ole32", SetLastError=true)]
+    public static partial int CoInitializeEx(
         IntPtr pvReserved, COINIT dwCoInit);
 
-    [DllImport("ole32", SetLastError=true)]
-    public static extern void CoUninitialize();
+    [LibraryImport("ole32", SetLastError=true)]
+    public static partial void CoUninitialize();
 
     ////////////////////////////////////////////////////////////////////////
 

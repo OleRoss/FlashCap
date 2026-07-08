@@ -28,7 +28,7 @@ public static class Program
         var devices = new CaptureDevices();
         var descriptor0 = devices.EnumerateDescriptors().
             // You could filter by device type and characteristics.
-            //Where(d => d.DeviceType == DeviceTypes.DirectShow).  // Only DirectShow device.
+            //Where(d => d.DeviceType == DeviceTypes.MediaFoundation).  // Only Media Foundation device.
             FirstOrDefault();
         if (descriptor0 == null)
         {

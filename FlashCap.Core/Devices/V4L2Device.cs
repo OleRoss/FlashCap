@@ -12,6 +12,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +21,7 @@ using static FlashCap.Internal.V4L2.NativeMethods_V4L2_Interop;
 
 namespace FlashCap.Devices;
 
+[SupportedOSPlatform("linux")]
 public sealed class V4L2Device : CaptureDevice
 {
     private const int BufferCount = 2;
@@ -36,11 +38,11 @@ public sealed class V4L2Device : CaptureDevice
     private IntPtr[] pBuffers = new IntPtr[BufferCount];
     private int[] bufferLength = new int[BufferCount];
     
-    private int fd;
+    private int fd = -1;
     private IntPtr pBih;
     private Task task;
-    private int abortrfd;
-    private int abortwfd;
+    private int abortrfd = -1;
+    private int abortwfd = -1;
 
 #pragma warning disable CS8618
     internal V4L2Device(object identity, string name) :
@@ -151,11 +153,21 @@ public sealed class V4L2Device : CaptureDevice
     {
         if (this.IsRunning)
         {
+            await this.OnStopAsync(default).
+                ConfigureAwait(false);
+        }
+
+        if (this.frameProcessor != null)
+        {
             await this.frameProcessor.DisposeAsync().
                 ConfigureAwait(false);
+            this.frameProcessor = null!;
+        }
 
-            await this.InternalStopAsync(default).
-                ConfigureAwait(false);
+        if (this.pBih != IntPtr.Zero)
+        {
+            NativeMethods.FreeMemory(this.pBih);
+            this.pBih = IntPtr.Zero;
         }
     }
 

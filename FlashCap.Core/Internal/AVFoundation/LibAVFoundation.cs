@@ -12,10 +12,12 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Linq;
+using System.Runtime.Versioning;
 using static FlashCap.Internal.NativeMethods_AVFoundation;
 
 namespace FlashCap.Internal.AVFoundation;
 
+[SupportedOSPlatform("macos")]
 internal static partial class LibAVFoundation
 {
     public const string Path = "/System/Library/Frameworks/AVFoundation.framework/AVFoundation";

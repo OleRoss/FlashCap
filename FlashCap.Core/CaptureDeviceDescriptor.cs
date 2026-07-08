@@ -23,6 +23,7 @@ public enum DeviceTypes
     DirectShow,
     V4L2,
     AVFoundation,
+    MediaFoundation,
 }
 
 public enum TranscodeFormats
@@ -121,7 +122,8 @@ public abstract class CaptureDeviceDescriptor
         TranscodeFormats transcodeFormat,
         CancellationToken ct)
     {
-        var tcs = new TaskCompletionSource<byte[]>();
+        var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
 
         using var device = await this.OnOpenWithFrameProcessorAsync(
             characteristics, transcodeFormat,
@@ -138,9 +140,14 @@ public abstract class CaptureDeviceDescriptor
             ct);
 
         await device.InternalStartAsync(ct);
-        var image = await tcs.Task;
-        await device.InternalStopAsync(ct);
-
-        return image;
+        try
+        {
+            return await tcs.Task.ConfigureAwait(false);
+        }
+        finally
+        {
+            await device.InternalStopAsync(default).
+                ConfigureAwait(false);
+        }
     }
 }

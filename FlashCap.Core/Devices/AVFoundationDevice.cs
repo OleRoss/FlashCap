@@ -12,6 +12,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using FlashCap.Internal;
@@ -23,6 +24,7 @@ using static FlashCap.Internal.NativeMethods_AVFoundation.LibCoreVideo;
 
 namespace FlashCap.Devices;
 
+[SupportedOSPlatform("macos")]
 public sealed class AVFoundationDevice : CaptureDevice
 {
     private readonly string uniqueID;
@@ -54,7 +56,11 @@ public sealed class AVFoundationDevice : CaptureDevice
         this.deviceOutput?.Dispose();
         this.queue?.Dispose();
 
-        Marshal.FreeHGlobal(this.bitmapHeader);
+        if (this.bitmapHeader != IntPtr.Zero)
+        {
+            NativeMethods.FreeMemory(this.bitmapHeader);
+            this.bitmapHeader = IntPtr.Zero;
+        }
 
         if (frameProcessor is not null)
         {
@@ -160,7 +166,11 @@ public sealed class AVFoundationDevice : CaptureDevice
         }
         catch
         {
-            NativeMethods.FreeMemory(this.bitmapHeader);
+            if (this.bitmapHeader != IntPtr.Zero)
+            {
+                NativeMethods.FreeMemory(this.bitmapHeader);
+                this.bitmapHeader = IntPtr.Zero;
+            }
             throw;
         }
     }
