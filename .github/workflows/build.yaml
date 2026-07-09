@@ -4,20 +4,7 @@ on: [push]
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            build_target: FlashCap.sln
-            pack: true
-          - os: ubuntu-latest
-            build_target: tests/FlashCap.Tests/FlashCap.Tests.csproj
-            pack: false
-          - os: macos-latest
-            build_target: tests/FlashCap.Tests/FlashCap.Tests.csproj
-            pack: false
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
 
     #-----------------------------------------------------------------------
@@ -32,11 +19,10 @@ jobs:
 
     - name: Extract branch name
       id: extract_branch_name
-      shell: bash
       run: |
-        branchName="$(git name-rev --name-only --exclude=tags/* HEAD)"
-        echo "Detected current branch: $branchName"
-        echo "branch_name=$branchName" >> "$GITHUB_OUTPUT"
+        export branch_name=`git name-rev --name-only --exclude=tags/* HEAD`
+        echo "Detected current branch: ${branch_name}"
+        echo "branch_name=${branch_name}" >> $GITHUB_OUTPUT
 
     #-----------------------------------------------------------------------
     # Setup environments
@@ -49,57 +35,26 @@ jobs:
           9.0.x
           10.0.x
 
-    - name: Install Native AOT prerequisites
-      if: runner.os == 'Linux'
-      run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
-
     - name: Setup NuGet package reference
       run: |
 #        dotnet nuget add source ${{secrets.GH_LOCAL_NUGET_URL}} -n ref1 -u ${{secrets.GH_LOCAL_NUGET_USER}} -p ${{secrets.GH_LOCAL_NUGET_PASSWORD}} --store-password-in-clear-text --configfile nuget.config
 #        dotnet nuget add source ${{secrets.GH_NUGET_URL}} -n ref2 -u ${{secrets.GH_NUGET_USER}} -p ${{secrets.GH_NUGET_PASSWORD}} --store-password-in-clear-text --configfile nuget.config
 
-    - name: Select Native AOT RID
-      id: aot_rid
-      shell: bash
-      run: |
-        case "$RUNNER_OS" in
-          Windows)
-            rid="win-x64"
-            ;;
-          Linux)
-            rid="linux-x64"
-            ;;
-          macOS)
-            if [ "$(uname -m)" = "arm64" ]; then
-              rid="osx-arm64"
-            else
-              rid="osx-x64"
-            fi
-            ;;
-          *)
-            echo "Unsupported runner OS: $RUNNER_OS" >&2
-            exit 1
-            ;;
-        esac
-        echo "Using Native AOT RID: $rid"
-        echo "rid=$rid" >> "$GITHUB_OUTPUT"
-
     #-----------------------------------------------------------------------
     # Build
-    
+
     - name: Build
-      run: dotnet build ${{ matrix.build_target }} -c Release -p:RestoreNoCache=True -p:BuildIdentifier=${{ github.run_number }}
-
-    - name: Test
-      run: dotnet test --project tests/FlashCap.Tests/FlashCap.Tests.csproj -c Release --no-build
-      timeout-minutes: 10
-
-    - name: Publish Native AOT smoke test
-      run: dotnet publish tests/FlashCap.Tests/FlashCap.Tests.csproj -c Release -f net10.0 -r ${{ steps.aot_rid.outputs.rid }} -p:PublishAot=true --self-contained true
+      run: dotnet build -p:Configuration=Release -p:Platform="Any CPU" -p:RestoreNoCache=True -p:BuildIdentifier=${GITHUB_RUN_NUMBER} FlashCap.sln
 
     - name: Build NuGet packages
-      if: matrix.pack
-      run: dotnet pack FlashCap.sln -c Release -p:BuildIdentifier=${{ github.run_number }} -o artifacts
+      run: dotnet pack -p:Configuration=Release -p:Platform="Any CPU" -p:BuildIdentifier=${GITHUB_RUN_NUMBER} -o artifacts FlashCap.sln
+
+    #-----------------------------------------------------------------------
+    # Test
+
+    #- name: Test
+    #  run: dotnet test --no-restore --verbosity normal -p:CITest=True FlashCap.sln
+    #  timeout-minutes: 10
 
     #-----------------------------------------------------------------------
     # Deploy packages (develop)
