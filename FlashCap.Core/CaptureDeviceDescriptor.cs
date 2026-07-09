@@ -79,9 +79,7 @@ public abstract class CaptureDeviceDescriptor
 
     //////////////////////////////////////////////////////////////////////////
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     internal Task<CaptureDevice> InternalOpenWithFrameProcessorAsync(
         VideoCharacteristics characteristics,
         TranscodeFormats transcodeFormat,

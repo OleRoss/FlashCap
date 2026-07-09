@@ -458,9 +458,7 @@ public sealed class V4L2Device : CaptureDevice
         }
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     protected override void OnCapture(
         IntPtr pData, int size,
         long timestampMicroseconds, long frameIndex,

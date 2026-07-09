@@ -687,9 +687,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
         }
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     protected override void OnCapture(
         IntPtr pData,
         int size,

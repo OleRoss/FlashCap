@@ -323,9 +323,7 @@ internal static class BitmapTranscoder
         }
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     private static byte Clip(int value) =>
         value < 0 ? (byte)0 :
         value > 255 ? (byte)255 :

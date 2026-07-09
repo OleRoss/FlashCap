@@ -13,9 +13,7 @@ namespace FlashCap;
 
 public static class PixelBufferScopeExtension
 {
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     public static void ReleaseNow(
         this PixelBufferScope pixelBufferScope) =>
         pixelBufferScope.InternalReleaseNow();

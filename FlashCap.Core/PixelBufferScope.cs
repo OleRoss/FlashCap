@@ -13,9 +13,7 @@ namespace FlashCap;
 
 public abstract class PixelBufferScope
 {
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     protected PixelBufferScope(PixelBuffer buffer) =>
         this.Buffer = buffer;
 
@@ -31,15 +29,11 @@ public abstract class PixelBufferScope
         private set;
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     protected virtual void OnReleaseNow() =>
         this.Buffer = null!;
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     internal void InternalReleaseNow() =>
         this.OnReleaseNow();
 }

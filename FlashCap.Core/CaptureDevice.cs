@@ -29,9 +29,7 @@ public abstract class CaptureDevice :
         this.Name = name;
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     public void Dispose() =>
         this.DisposeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
 
@@ -101,9 +99,7 @@ public abstract class CaptureDevice :
         await this.OnStopAsync(ct);
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     internal void InternalOnCapture(
         IntPtr pData, int size, long timestampMicroseconds, long frameIndex, PixelBuffer buffer) =>
         this.OnCapture(pData, size, timestampMicroseconds, frameIndex, buffer);

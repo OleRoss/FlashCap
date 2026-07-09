@@ -16,21 +16,15 @@ namespace FlashCap;
 
 public static class ObservableCaptureDeviceExtension
 {
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     public static Task StartAsync(this ObservableCaptureDevice observableCaptureDevice, CancellationToken ct = default) =>
         observableCaptureDevice.InternalStartAsync(ct);
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     public static Task StopAsync(this ObservableCaptureDevice observableCaptureDevice, CancellationToken ct = default) =>
         observableCaptureDevice.InternalStopAsync(ct);
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     public static IDisposable Subscribe(
         this ObservableCaptureDevice observableCaptureDevice,
         IObserver<PixelBufferScope> observer) =>

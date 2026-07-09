@@ -49,9 +49,7 @@ public abstract class FrameProcessor
         }
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     protected PixelBuffer GetPixelBuffer()
     {
         PixelBuffer? buffer = null;
@@ -69,9 +67,7 @@ public abstract class FrameProcessor
         return buffer;
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     public void ReleasePixelBuffer(PixelBuffer buffer)
     {
         lock (this.reserver)
@@ -80,9 +76,7 @@ public abstract class FrameProcessor
         }
     }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
     protected void Capture(CaptureDevice captureDevice,
         IntPtr pData, int size,
         long timestampMicroseconds, long frameIndex,
@@ -98,18 +92,14 @@ public abstract class FrameProcessor
     {
         private FrameProcessor? parent;
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
         public AutoPixelBufferScope(
             FrameProcessor parent,
             PixelBuffer buffer) :
             base(buffer) =>
             this.parent = parent;
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
         public void Dispose()
         {
             lock (this)
@@ -124,9 +114,7 @@ public abstract class FrameProcessor
             }
         }
 
-#if NET45_OR_GREATER || NETSTANDARD || NETCOREAPP
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
         protected override void OnReleaseNow() =>
             this.Dispose();
     }
