@@ -400,7 +400,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
             while (this.IsRunning)
             {
                 var hr = sourceReader.ReadSample(
-                    NativeMethods_MediaFoundation.MF_SOURCE_READER_ANY_STREAM,
+                    VideoStreamIndex,
                     0,
                     out _,
                     out var streamFlags,
@@ -456,15 +456,13 @@ public sealed class MediaFoundationDevice : CaptureDevice
         var bufferPointer = IntPtr.Zero;
         try
         {
-            var sample = MediaFoundationCom.Wrap<IMFSample>(samplePointer);
-            if (sample.ConvertToContiguousBuffer(out bufferPointer) < 0 ||
+            if (MediaFoundationNativeCom.ConvertToContiguousBuffer(samplePointer, out bufferPointer) < 0 ||
                 bufferPointer == IntPtr.Zero)
             {
                 return;
             }
 
-            var buffer = MediaFoundationCom.Wrap<IMFMediaBuffer>(bufferPointer);
-            if (buffer.Lock(out var data, out _, out var currentLength) < 0)
+            if (MediaFoundationNativeCom.Lock(bufferPointer, out var data, out _, out var currentLength) < 0)
             {
                 return;
             }
@@ -508,7 +506,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
             }
             finally
             {
-                buffer.Unlock();
+                MediaFoundationNativeCom.Unlock(bufferPointer);
             }
         }
         finally
