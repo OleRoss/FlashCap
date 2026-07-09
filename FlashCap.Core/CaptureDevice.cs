@@ -31,7 +31,7 @@ public abstract class CaptureDevice :
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose() =>
-        this.DisposeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        _ = this.DisposeAsync().ConfigureAwait(false);
 
 #if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
     ValueTask IAsyncDisposable.DisposeAsync() =>

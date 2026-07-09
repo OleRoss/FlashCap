@@ -20,7 +20,6 @@ namespace FlashCap;
 public enum DeviceTypes
 {
     VideoForWindows,
-    DirectShow,
     V4L2,
     AVFoundation,
     MediaFoundation,
