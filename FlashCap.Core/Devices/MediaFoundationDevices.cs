@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,7 +29,7 @@ public sealed class MediaFoundationDevices(BufferPool defaultBufferPool) : Captu
 
     protected override IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
     {
-        if (!OperatingSystem.IsWindows())
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             throw new PlatformNotSupportedException();
         }

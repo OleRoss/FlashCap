@@ -10,7 +10,6 @@
 
 using FlashCap.Internal;
 using System;
-using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -302,7 +301,10 @@ public sealed class MediaFoundationDevice : CaptureDevice
         var frame = this.NormalizeFrame(data, length, defaultStride);
         try
         {
-            Debug.Assert(this.frameProcessor is not null);
+            if (this.frameProcessor is null)
+            {
+                throw new InvalidOperationException("FlashCap: The frame processor is not initialized.");
+            }
             if (frame.Pointer != IntPtr.Zero)
             {
                 this.frameProcessor.OnFrameArrived(
@@ -363,8 +365,9 @@ public sealed class MediaFoundationDevice : CaptureDevice
             format is PixelFormats.RGB15 or PixelFormats.RGB16 or
                 PixelFormats.RGB24 or PixelFormats.RGB32 or PixelFormats.ARGB32;
         MediaFoundationInterop.RepackFrame(
-            new ReadOnlySpan<byte>(data, length),
-            managedBuffer.AsSpan(0, layout.TargetLength),
+            data,
+            length,
+            managedBuffer,
             layout,
             reverseRows);
         return new FrameMemory(IntPtr.Zero, layout.TargetLength);
