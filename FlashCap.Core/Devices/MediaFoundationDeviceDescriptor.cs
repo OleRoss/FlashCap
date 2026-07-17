@@ -9,6 +9,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using FlashCap.Internal;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,18 +19,18 @@ namespace FlashCap.Devices;
 public sealed class MediaFoundationDeviceDescriptor : CaptureDeviceDescriptor
 {
     private readonly string symbolicLink;
-    private readonly MediaFoundationInterop.Format[] formats;
+    private readonly IReadOnlyDictionary<VideoCharacteristics, MediaFoundationInterop.FormatKey> characteristicToFormatLookup;
 
     internal MediaFoundationDeviceDescriptor(
         string symbolicLink,
         string name,
         string description,
-        MediaFoundationInterop.Format[] formats,
+        IReadOnlyDictionary<VideoCharacteristics, MediaFoundationInterop.FormatKey> characteristicToFormatLookup,
         BufferPool defaultBufferPool) :
-        base(name, description, formats.Select(format => format.Characteristics).ToArray(), defaultBufferPool)
+        base(name, description, characteristicToFormatLookup.Keys.ToArray(), defaultBufferPool)
     {
         this.symbolicLink = symbolicLink;
-        this.formats = formats;
+        this.characteristicToFormatLookup = characteristicToFormatLookup;
     }
 
     public override object Identity => this.symbolicLink;
@@ -42,8 +43,7 @@ public sealed class MediaFoundationDeviceDescriptor : CaptureDeviceDescriptor
         FrameProcessor frameProcessor,
         CancellationToken ct)
     {
-        var format = this.formats.FirstOrDefault(candidate => candidate.Characteristics.Equals(characteristics));
-        if (format.Characteristics is null)
+        if (!this.characteristicToFormatLookup.TryGetValue(characteristics, out var formatKey))
         {
             throw new System.ArgumentException(
                 "FlashCap: The selected Media Foundation format is not available.",
@@ -51,7 +51,7 @@ public sealed class MediaFoundationDeviceDescriptor : CaptureDeviceDescriptor
         }
 
         return this.InternalOnOpenWithFrameProcessorAsync(
-            new MediaFoundationDevice(this.symbolicLink, this.Name, format.Key),
+            new MediaFoundationDevice(this.symbolicLink, this.Name, formatKey),
             characteristics,
             transcodeFormat,
             frameProcessor,

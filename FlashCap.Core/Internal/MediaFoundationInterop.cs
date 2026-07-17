@@ -383,7 +383,7 @@ internal static unsafe class MediaFoundationInterop
     {
         if (value is not null)
         {
-            _ = ((Windows.Win32.System.Com.IUnknown*)value)->Release();
+            _ = ((IUnknown*)value)->Release();
         }
     }
 

@@ -19,15 +19,10 @@ using Windows.Win32.Media.MediaFoundation;
 
 namespace FlashCap.Devices;
 
-public sealed class MediaFoundationDevices : CaptureDevices
+public sealed class MediaFoundationDevices(BufferPool defaultBufferPool) : CaptureDevices(defaultBufferPool)
 {
     public MediaFoundationDevices() :
         this(new DefaultBufferPool())
-    {
-    }
-
-    public MediaFoundationDevices(BufferPool defaultBufferPool) :
-        base(defaultBufferPool)
     {
     }
 
@@ -94,7 +89,7 @@ public sealed class MediaFoundationDevices : CaptureDevices
                     }
 
                     var formats = EnumerateFormats(activate);
-                    if (formats.Length == 0)
+                    if (formats.Count == 0)
                     {
                         continue;
                     }
@@ -125,7 +120,8 @@ public sealed class MediaFoundationDevices : CaptureDevices
         }
     }
 
-    private static unsafe MediaFoundationInterop.Format[] EnumerateFormats(IMFActivate* activate)
+    private static unsafe Dictionary<VideoCharacteristics, MediaFoundationInterop.FormatKey> EnumerateFormats(
+        IMFActivate* activate)
     {
         IMFMediaSource* mediaSource = null;
         IMFSourceReader* reader = null;
@@ -133,7 +129,9 @@ public sealed class MediaFoundationDevices : CaptureDevices
         {
             mediaSource = MediaFoundationInterop.ActivateMediaSource(activate);
             reader = MediaFoundationInterop.CreateSourceReader(mediaSource);
-            return MediaFoundationInterop.EnumerateFormats(reader).ToArray();
+            return MediaFoundationInterop.EnumerateFormats(reader)
+                .DistinctBy(format => format.Characteristics)
+                .ToDictionary(format => format.Characteristics, format => format.Key);
         }
         finally
         {
