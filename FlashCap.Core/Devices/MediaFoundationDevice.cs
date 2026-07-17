@@ -10,15 +10,15 @@
 
 using FlashCap.Internal;
 using System;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Win32;
 using Windows.Win32.Media.MediaFoundation;
+using FlashCap.Internal.MediaFoundation;
 using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_CONSTANTS;
-using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_FLAG;
 #if !NET9_0_OR_GREATER
 using Lock = object;
 #endif
@@ -219,9 +219,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
 
     private unsafe void Capture(TaskCompletionSource startup, CancellationToken stopToken)
     {
-        IMFActivate* activate = null;
-        IMFMediaSource* mediaSource = null;
-        IMFSourceReader* reader = null;
+        CaptureSession? session = null;
         bool initialized = false;
         bool startupCompleted = false;
         try
@@ -229,20 +227,17 @@ public sealed class MediaFoundationDevice : CaptureDevice
             MediaFoundationInterop.Initialize();
             initialized = true;
 
-            activate = MediaFoundationInterop.FindActivate(this.symbolicLink);
-            mediaSource = MediaFoundationInterop.ActivateMediaSource(activate);
-            reader = MediaFoundationInterop.CreateSourceReader(mediaSource);
-            var defaultStride = this.ConfigureReader(reader);
+            session = CaptureSession.Open(this.symbolicLink, this.formatKey);
             stopToken.ThrowIfCancellationRequested();
 
             lock (this.sync)
             {
-                this.activeSourceReader = reader;
+                this.activeSourceReader = session.SourceReader;
             }
             this.IsRunning = true;
             startupCompleted = true;
             startup.TrySetResult();
-            this.ReadFrames(reader, defaultStride, stopToken);
+            session.ReadFrames(stopToken, this.OnFrame);
         }
         catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
         {
@@ -259,7 +254,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
             }
             else
             {
-                MediaFoundationInterop.TraceFailure("capture", exception);
+                MediaFoundationHelpers.TraceFailure("capture", exception);
             }
         }
         finally
@@ -277,20 +272,10 @@ public sealed class MediaFoundationDevice : CaptureDevice
             }
             catch (Exception exception)
             {
-                MediaFoundationInterop.TraceFailure("capture interruption", exception);
+                MediaFoundationHelpers.TraceFailure("capture interruption", exception);
             }
 
-            if (reader is null && mediaSource is not null)
-            {
-                _ = mediaSource->Shutdown();
-            }
-            MediaFoundationInterop.Release(reader);
-            if (activate is not null)
-            {
-                _ = activate->ShutdownObject();
-            }
-            MediaFoundationInterop.Release(mediaSource);
-            MediaFoundationInterop.Release(activate);
+            session?.Dispose();
             if (initialized)
             {
                 MediaFoundationInterop.Uninitialize();
@@ -303,158 +288,34 @@ public sealed class MediaFoundationDevice : CaptureDevice
         }
     }
 
-    private unsafe int? ConfigureReader(IMFSourceReader* reader)
+    private unsafe void OnFrame(
+        byte* data,
+        int length,
+        int? defaultStride,
+        long timestampMicroseconds,
+        long frameIndex)
     {
-        MediaFoundationInterop.ThrowIfFailed(
-            reader->SetStreamSelection(unchecked((uint)MF_SOURCE_READER_ALL_STREAMS), false),
-            "IMFSourceReader.SetStreamSelection(all)");
-        MediaFoundationInterop.ThrowIfFailed(
-            reader->SetStreamSelection(MediaFoundationInterop.VideoStreamIndex, true),
-            "IMFSourceReader.SetStreamSelection(video)");
-
-        IMFMediaType* mediaType = null;
+        var frame = this.NormalizeFrame(data, length, defaultStride);
         try
         {
-            MediaFoundationInterop.ThrowIfFailed(
-                reader->GetNativeMediaType(
-                    MediaFoundationInterop.VideoStreamIndex,
-                    this.formatKey.MediaTypeIndex,
-                    &mediaType),
-                "IMFSourceReader.GetNativeMediaType");
-            if (mediaType is null ||
-                !MediaFoundationInterop.TryCreateFormat(
-                    mediaType, this.formatKey.MediaTypeIndex, out var selected) ||
-                !selected.Key.Equals(this.formatKey))
+            Debug.Assert(this.frameProcessor is not null);
+            if (frame.Pointer != IntPtr.Zero)
             {
-                throw new InvalidOperationException(
-                    "FlashCap: The selected Media Foundation format is no longer available.");
+                this.frameProcessor.OnFrameArrived(
+                    this, frame.Pointer, frame.Length, timestampMicroseconds, frameIndex);
             }
-
-            MediaFoundationInterop.ThrowIfFailed(
-                reader->SetCurrentMediaType(MediaFoundationInterop.VideoStreamIndex, mediaType),
-                "IMFSourceReader.SetCurrentMediaType");
-            return mediaType->GetUINT32(in PInvoke.MF_MT_DEFAULT_STRIDE, out var stride).Succeeded ?
-                unchecked((int)stride) : null;
-        }
-        finally
-        {
-            MediaFoundationInterop.Release(mediaType);
-        }
-    }
-
-    private unsafe void ReadFrames(IMFSourceReader* reader, int? defaultStride, CancellationToken stopToken)
-    {
-        long? firstTimestamp = null;
-        long frameIndex = 0;
-        while (!stopToken.IsCancellationRequested)
-        {
-            uint flags = 0;
-            long timestamp = 0;
-            IMFSample* sample = null;
-            var result = reader->ReadSample(
-                MediaFoundationInterop.VideoStreamIndex,
-                0,
-                null,
-                &flags,
-                &timestamp,
-                &sample);
-            if (result.Failed)
+            else
             {
-                if (stopToken.IsCancellationRequested)
+                fixed (byte* repacked = this.repackBuffer!)
                 {
-                    break;
+                    this.frameProcessor.OnFrameArrived(
+                        this, (IntPtr)repacked, frame.Length, timestampMicroseconds, frameIndex);
                 }
-                MediaFoundationInterop.ThrowIfFailed(result, "IMFSourceReader.ReadSample");
-            }
-
-            try
-            {
-                if (stopToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                var readerFlags = (MF_SOURCE_READER_FLAG)flags;
-                if ((readerFlags & (MF_SOURCE_READERF_ERROR |
-                    MF_SOURCE_READERF_ENDOFSTREAM |
-                    MF_SOURCE_READERF_NATIVEMEDIATYPECHANGED |
-                    MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)) != 0)
-                {
-                    throw new InvalidOperationException(
-                        $"FlashCap: Media Foundation capture stream changed state ({readerFlags}).");
-                }
-                if (sample is null || (readerFlags & MF_SOURCE_READERF_STREAMTICK) != 0)
-                {
-                    continue;
-                }
-
-                firstTimestamp ??= timestamp;
-                this.ProcessSample(
-                    sample,
-                    defaultStride,
-                    Math.Max(0, timestamp - firstTimestamp.Value) / 10,
-                    frameIndex++);
-            }
-            finally
-            {
-                MediaFoundationInterop.Release(sample);
             }
         }
-    }
-
-    private unsafe void ProcessSample(IMFSample* sample, int? defaultStride, long timestamp, long frameIndex)
-    {
-        IMFMediaBuffer* buffer = null;
-        MediaFoundationInterop.ThrowIfFailed(
-            sample->ConvertToContiguousBuffer(&buffer),
-            "IMFSample.ConvertToContiguousBuffer");
-        if (buffer is null)
+        catch (Exception exception)
         {
-            throw new InvalidOperationException("FlashCap: Media Foundation returned no sample buffer.");
-        }
-
-        byte* data = null;
-        bool locked = false;
-        try
-        {
-            uint currentLength = 0;
-            MediaFoundationInterop.ThrowIfFailed(
-                buffer->Lock(&data, null, &currentLength),
-                "IMFMediaBuffer.Lock");
-            locked = true;
-            if (data is null || currentLength == 0 || currentLength > int.MaxValue)
-            {
-                throw new InvalidOperationException("FlashCap: Media Foundation returned an invalid frame buffer.");
-            }
-
-            var frame = this.NormalizeFrame(data, checked((int)currentLength), defaultStride);
-            try
-            {
-                if (frame.Pointer != IntPtr.Zero)
-                {
-                    this.frameProcessor!.OnFrameArrived(
-                        this, frame.Pointer, frame.Length, timestamp, frameIndex);
-                }
-                else
-                {
-                    fixed (byte* repacked = this.repackBuffer!)
-                    {
-                        this.frameProcessor!.OnFrameArrived(
-                            this, (IntPtr)repacked, frame.Length, timestamp, frameIndex);
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                MediaFoundationInterop.TraceFailure("frame callback", exception);
-            }
-        }
-        finally
-        {
-            if (locked)
-            {
-                _ = buffer->Unlock();
-            }
-            MediaFoundationInterop.Release(buffer);
+            MediaFoundationHelpers.TraceFailure("frame callback", exception);
         }
     }
 
@@ -512,7 +373,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
         {
             if (reader is not null)
             {
-                MediaFoundationInterop.ThrowIfFailed(
+                MediaFoundationHelpers.ThrowIfFailed(
                     reader->Flush(unchecked((uint)MF_SOURCE_READER_ALL_STREAMS)),
                     "IMFSourceReader.Flush");
             }
@@ -523,20 +384,14 @@ public sealed class MediaFoundationDevice : CaptureDevice
         }
     }
 
-    protected override unsafe void OnCapture(
+    protected override void OnCapture(
         IntPtr pData,
         int size,
         long timestampMicroseconds,
         long frameIndex,
         PixelBuffer buffer)
     {
-        buffer.CopyIn(
-            this.bitmapHeader,
-            pData,
-            size,
-            timestampMicroseconds,
-            frameIndex,
-            this.transcodeFormat);
+        buffer.CopyIn(this.bitmapHeader, pData, size, timestampMicroseconds, frameIndex, this.transcodeFormat);
     }
 
     private readonly record struct FrameMemory(IntPtr Pointer, int Length);

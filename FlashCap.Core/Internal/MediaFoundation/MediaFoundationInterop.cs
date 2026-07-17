@@ -8,7 +8,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
-using FlashCap.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,8 +18,10 @@ using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Media.MediaFoundation;
 using Windows.Win32.System.Com;
+using FlashCap.Utilities;
+using static FlashCap.Internal.MediaFoundation.MediaFoundationHelpers;
 
-namespace FlashCap.Internal;
+namespace FlashCap.Internal.MediaFoundation;
 
 [SupportedOSPlatform("windows6.0")]
 internal static unsafe class MediaFoundationInterop
@@ -53,14 +54,12 @@ internal static unsafe class MediaFoundationInterop
         internal int TargetLength => checked(this.TargetStride * this.Rows);
     }
 
-    internal static void ThrowIfFailed(HRESULT result, string operation)
-    {
-        if (result.Failed)
-        {
-            throw new InvalidOperationException(
-                $"FlashCap: {operation} failed (HRESULT=0x{unchecked((uint)result.Value):X8}).");
-        }
-    }
+    internal delegate void FrameHandler(
+        byte* data,
+        int length,
+        int? defaultStride,
+        long timestampMicroseconds,
+        long frameIndex);
 
     /// <summary>
     /// Initializes COM as MTA and starts Media Foundation on the current thread.
@@ -379,31 +378,7 @@ internal static unsafe class MediaFoundationInterop
         }
     }
 
-    internal static IMFActivate* FindActivate(string symbolicLink)
-    {
-        IMFActivate** devices = null;
-        uint count = 0;
-        try
-        {
-            devices = EnumerateDeviceSources(out count);
-            for (uint index = 0; index < count; index++)
-            {
-                var activate = devices[index];
-                if (activate is not null && string.Equals(
-                    GetAllocatedString(activate, in PInvoke.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK).Trim(),
-                    symbolicLink, StringComparison.OrdinalIgnoreCase))
-                {
-                    devices[index] = null;
-                    return activate;
-                }
-            }
-        }
-        finally
-        {
-            FreeActivateArray(devices, count);
-        }
-        throw new InvalidOperationException("FlashCap: The Media Foundation device is no longer available.");
-    }
+    
 
     internal static void FreeActivateArray(IMFActivate** devices, uint count)
     {
@@ -425,8 +400,5 @@ internal static unsafe class MediaFoundationInterop
             _ = ((IUnknown*)value)->Release();
         }
     }
-
-    internal static void TraceFailure(string operation, Exception exception) =>
-        Trace.WriteLine($"FlashCap: Media Foundation {operation} failed: {exception}");
 }
 #endif

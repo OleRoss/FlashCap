@@ -16,6 +16,7 @@ using System.Linq;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
+using FlashCap.Internal.MediaFoundation;
 
 namespace FlashCap.Devices;
 
@@ -52,7 +53,7 @@ public sealed class MediaFoundationDevices(BufferPool defaultBufferPool) : Captu
         }
         catch (Exception exception)
         {
-            MediaFoundationInterop.TraceFailure("device discovery", exception);
+            MediaFoundationHelpers.TraceFailure("device discovery", exception);
             return [];
         }
     }
