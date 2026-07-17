@@ -14,6 +14,7 @@ using System.Linq;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
+using FlashCap.Internal;
 using FlashCap.Internal.MediaFoundation;
 
 namespace FlashCap.Devices;
@@ -28,10 +29,9 @@ public sealed class MediaFoundationDevices(BufferPool defaultBufferPool) : Captu
 
     protected override IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
     {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(6, 1))
+        if (!NativeMethods.IsWindowsVersionAtLeast(6, 1))
         {
-            throw new PlatformNotSupportedException(
-                "Media Foundation capture requires Windows 7 or later.");
+            throw new PlatformNotSupportedException("Media Foundation capture requires Windows 7 or later.");
         }
 
         try

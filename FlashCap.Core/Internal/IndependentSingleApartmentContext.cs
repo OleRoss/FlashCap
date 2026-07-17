@@ -115,7 +115,7 @@ internal sealed class IndependentSingleApartmentContext :
 
     public IndependentSingleApartmentContext()
     {
-        Debug.Assert(NativeMethods.CurrentPlatform == NativeMethods.Platforms.Windows);
+        Debug.Assert(NativeMethods.IsWindows());
 
         this.thread = new(this.ThreadEntry);
         this.thread.IsBackground = true;

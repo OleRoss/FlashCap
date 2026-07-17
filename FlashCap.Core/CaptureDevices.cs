@@ -15,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Versioning;
 
 namespace FlashCap;
 
@@ -44,32 +45,29 @@ public class CaptureDevices
 
     protected virtual IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
     {
-        switch (NativeMethods.CurrentPlatform)
+        if (NativeMethods.IsWindows())
         {
-            case NativeMethods.Platforms.Windows:
-            {
-                if (!OperatingSystem.IsWindows())
-                    return ArrayEx.Empty<CaptureDeviceDescriptor>();
-
-                IEnumerable<CaptureDeviceDescriptor> descriptors = [];
+            IEnumerable<CaptureDeviceDescriptor> descriptors = [];
 #if NETSTANDARD2_1 || NETCOREAPP3_0_OR_GREATER
-                if (RuntimeFeature.IsDynamicCodeSupported)
+            if (RuntimeFeature.IsDynamicCodeSupported)
 #endif
-                    descriptors = new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
-                descriptors = descriptors.Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
+                descriptors = new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
+            descriptors = descriptors.Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
 #if FLASHCAP_MEDIAFOUNDATION
-                if (OperatingSystem.IsWindowsVersionAtLeast(6, 1))
-                    descriptors = descriptors.Concat(new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
+            if (NativeMethods.IsWindowsVersionAtLeast(6, 1))
+                descriptors = descriptors.Concat(new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
 #endif
-                return descriptors;
-            }
-            case NativeMethods.Platforms.Linux:
-                return new V4L2Devices().OnEnumerateDescriptors();
-            case NativeMethods.Platforms.MacOS:
-                return new AVFoundationDevices().OnEnumerateDescriptors();
-            default:
-                return ArrayEx.Empty<CaptureDeviceDescriptor>();
+            return descriptors;
         }
+        if (NativeMethods.IsLinux())
+        {
+            return new V4L2Devices().OnEnumerateDescriptors();
+        }
+        if (NativeMethods.IsMacOS())
+        {
+            return new AVFoundationDevices().OnEnumerateDescriptors();
+        }
+        return ArrayEx.Empty<CaptureDeviceDescriptor>();
     }
 
     internal IEnumerable<CaptureDeviceDescriptor> InternalEnumerateDescriptors() =>
