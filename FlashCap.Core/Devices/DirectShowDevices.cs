@@ -10,10 +10,12 @@
 using FlashCap.Internal;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 namespace FlashCap.Devices;
 
+[RequiresDynamicCode("Direct show depends on COM runtime generation and requires dynamic code")]
 public sealed class DirectShowDevices : CaptureDevices
 {
     public DirectShowDevices() :

@@ -18,32 +18,55 @@ using System.Runtime.CompilerServices;
 
 namespace FlashCap;
 
-public class CaptureDevices(BufferPool defaultBufferPool)
+/// <summary>
+/// By default, the following backends are considered for <see cref="OnEnumerateDescriptors"/>:
+/// <list type= "bullet">
+/// <item><description><see cref="DirectShowDevices"/> (Win)- Only if <see cref="RuntimeFeature.IsDynamicCodeSupported"/> is true</description></item>
+/// <item><description><see cref="VideoForWindowsDevices"/> (Win)</description></item>
+/// <item><description><see cref="MediaFoundationDevices"/> (Win) - Supported only >= NET8.0 or greater and Windows6.0 or greater</description></item>
+/// <item><description><see cref="V4L2Devices"/> (Linux)</description></item>
+/// <item><description><see cref="AVFoundationDevices"/> (MacOs)</description></item>
+/// </list>
+/// </summary>
+public class CaptureDevices
 {
-    protected readonly BufferPool DefaultBufferPool = defaultBufferPool;
+    protected readonly BufferPool DefaultBufferPool;
 
     public CaptureDevices() :
         this(new DefaultBufferPool())
     {
     }
 
-    protected virtual IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors() =>
-        NativeMethods.CurrentPlatform switch
+    public CaptureDevices(BufferPool defaultBufferPool)
+    {
+        DefaultBufferPool = defaultBufferPool;
+    }
+
+    protected virtual IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
+    {
+        switch (NativeMethods.CurrentPlatform)
         {
-            NativeMethods.Platforms.Windows =>
-                new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors().
-                Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors())
-#if NET8_0_OR_GREATER
-                .Concat(new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors())
+            case NativeMethods.Platforms.Windows:
+            {
+                IEnumerable<CaptureDeviceDescriptor> descriptors = [];
+#if NETSTANDARD2_1 || NETCOREAPP3_0_OR_GREATER
+                if (RuntimeFeature.IsDynamicCodeSupported)
 #endif
-                ,
-            NativeMethods.Platforms.Linux =>
-                new V4L2Devices().OnEnumerateDescriptors(),
-            NativeMethods.Platforms.MacOS =>
-                new AVFoundationDevices().OnEnumerateDescriptors(),
-            _ =>
-                ArrayEx.Empty<CaptureDeviceDescriptor>(),
-        };
+                    descriptors = new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
+                descriptors = descriptors.Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
+#if FLASHCAP_MEDIAFOUNDATION
+                descriptors = descriptors.Concat(new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
+#endif
+                return descriptors;
+            }
+            case NativeMethods.Platforms.Linux:
+                return new V4L2Devices().OnEnumerateDescriptors();
+            case NativeMethods.Platforms.MacOS:
+                return new AVFoundationDevices().OnEnumerateDescriptors();
+            default:
+                return ArrayEx.Empty<CaptureDeviceDescriptor>();
+        }
+    }
 
     internal IEnumerable<CaptureDeviceDescriptor> InternalEnumerateDescriptors() =>
         this.OnEnumerateDescriptors();

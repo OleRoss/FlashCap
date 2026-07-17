@@ -10,6 +10,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Security;
 using FlashCap.Utilities;
@@ -17,6 +18,7 @@ using static FlashCap.Devices.DirectShowDevice;
 
 namespace FlashCap.Internal;
 
+[RequiresDynamicCode("Direct show depends on COM runtime generation and requires dynamic code")]
 [SuppressUnmanagedCodeSecurity]
 internal static class NativeMethods_DirectShow
 {
