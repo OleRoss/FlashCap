@@ -14,7 +14,6 @@ using FlashCap.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
 namespace FlashCap;
 
@@ -23,7 +22,7 @@ namespace FlashCap;
 /// <list type= "bullet">
 /// <item><description><see cref="DirectShowDevices"/> (windows)- Only if <c>RuntimeFeature.IsDynamicCodeSupported</c> is true</description></item>
 /// <item><description><see cref="VideoForWindowsDevices"/> (windows)</description></item>
-/// <item><description><c>MediaFoundationDevices</c> (windows6.0 or greater) - Supported on net48, netstandard2.1, .NET 5.0 or greater</description></item>
+/// <item><description><c>MediaFoundationDevices</c> (windows6.0 or greater) - Supported on net48, netstandard2.0 or greater, .NET 5.0 or greater</description></item>
 /// <item><description><see cref="V4L2Devices"/> (linux)</description></item>
 /// <item><description><see cref="AVFoundationDevices"/> (macOs)</description></item>
 /// </list>
