@@ -11,6 +11,7 @@
 using FlashCap.Internal;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -30,7 +31,8 @@ public sealed class MediaFoundationDevices(BufferPool defaultBufferPool) : Captu
     {
         if (!OperatingSystem.IsWindows())
         {
-            return [];
+            // The class is guarded by SupportedOSPlatform
+            throw new UnreachableException();
         }
 
         try

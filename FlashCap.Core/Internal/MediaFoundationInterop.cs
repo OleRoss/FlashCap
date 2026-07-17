@@ -62,37 +62,27 @@ internal static unsafe class MediaFoundationInterop
         }
     }
 
-    internal static bool TryInitialize(out bool mediaFoundationStarted)
+    /// <summary>
+    /// Initializes COM as MTA and starts Media Foundation on the current thread.
+    /// After this method succeeds, call <see cref="Uninitialize"/> in a <c>finally</c> block on the same thread.
+    /// </summary>
+    internal static void Initialize()
     {
-        mediaFoundationStarted = false;
         var result = PInvoke.CoInitializeEx(COINIT.COINIT_MULTITHREADED);
-        if (result.Failed)
-        {
-            Trace.WriteLine(
-                $"FlashCap: CoInitializeEx failed (HRESULT=0x{unchecked((uint)result.Value):X8}).");
-            return false;
-        }
+        ThrowIfFailed(result, nameof(PInvoke.CoInitializeEx));
 
         result = PInvoke.MFStartup(PInvoke.MF_VERSION, PInvoke.MFSTARTUP_FULL);
         if (result.Failed)
         {
-            Trace.WriteLine(
-                $"FlashCap: MFStartup failed (HRESULT=0x{unchecked((uint)result.Value):X8}).");
             PInvoke.CoUninitialize();
-            return false;
+            ThrowIfFailed(result, nameof(PInvoke.MFStartup));
         }
-
-        mediaFoundationStarted = true;
-        return true;
     }
 
-    internal static void Uninitialize(bool mediaFoundationStarted)
+    internal static void Uninitialize()
     {
-        if (mediaFoundationStarted)
-        {
-            _ = PInvoke.MFShutdown();
-            PInvoke.CoUninitialize();
-        }
+        _ = PInvoke.MFShutdown();
+        PInvoke.CoUninitialize();
     }
 
     internal static IMFAttributes* CreateVideoCaptureAttributes()
@@ -133,10 +123,7 @@ internal static unsafe class MediaFoundationInterop
 
     internal static DeviceInfo[] EnumerateDevices()
     {
-        if (!TryInitialize(out var started))
-        {
-            return [];
-        }
+        Initialize();
 
         IMFActivate** devices = null;
         uint count = 0;
@@ -192,7 +179,7 @@ internal static unsafe class MediaFoundationInterop
         finally
         {
             FreeActivateArray(devices, count);
-            Uninitialize(started);
+            Uninitialize();
         }
     }
 

@@ -18,17 +18,14 @@ using System.Runtime.CompilerServices;
 
 namespace FlashCap;
 
-public class CaptureDevices
+public class CaptureDevices(BufferPool defaultBufferPool)
 {
-    protected readonly BufferPool DefaultBufferPool;
+    protected readonly BufferPool DefaultBufferPool = defaultBufferPool;
 
     public CaptureDevices() :
         this(new DefaultBufferPool())
     {
     }
-    
-    public CaptureDevices(BufferPool defaultBufferPool) =>
-        this.DefaultBufferPool = defaultBufferPool;
 
     protected virtual IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors() =>
         NativeMethods.CurrentPlatform switch

@@ -222,14 +222,12 @@ public sealed class MediaFoundationDevice : CaptureDevice
         IMFActivate* activate = null;
         IMFMediaSource* mediaSource = null;
         IMFSourceReader* reader = null;
-        bool started = false;
+        bool initialized = false;
         bool startupCompleted = false;
         try
         {
-            if (!MediaFoundationInterop.TryInitialize(out started))
-            {
-                throw new InvalidOperationException("FlashCap: Could not initialize Media Foundation.");
-            }
+            MediaFoundationInterop.Initialize();
+            initialized = true;
 
             activate = MediaFoundationInterop.FindActivate(this.symbolicLink);
             mediaSource = MediaFoundationInterop.ActivateMediaSource(activate);
@@ -293,7 +291,10 @@ public sealed class MediaFoundationDevice : CaptureDevice
             }
             MediaFoundationInterop.Release(mediaSource);
             MediaFoundationInterop.Release(activate);
-            MediaFoundationInterop.Uninitialize(started);
+            if (initialized)
+            {
+                MediaFoundationInterop.Uninitialize();
+            }
             if (!startupCompleted)
             {
                 startup.TrySetException(new InvalidOperationException(
@@ -506,10 +507,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
 
     private static unsafe void Interrupt(IMFSourceReader* reader)
     {
-        if (!MediaFoundationInterop.TryInitialize(out var started))
-        {
-            return;
-        }
+        MediaFoundationInterop.Initialize();
         try
         {
             if (reader is not null)
@@ -521,7 +519,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
         }
         finally
         {
-            MediaFoundationInterop.Uninitialize(started);
+            MediaFoundationInterop.Uninitialize();
         }
     }
 
