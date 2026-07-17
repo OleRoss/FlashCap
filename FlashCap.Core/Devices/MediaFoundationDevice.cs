@@ -1,0 +1,551 @@
+#if NET8_0_OR_GREATER
+////////////////////////////////////////////////////////////////////////////
+//
+// FlashCap - Independent camera capture library.
+// Copyright (c) Kouji Matsui (@kekyo@mi.kekyo.net)
+//
+// Licensed under Apache-v2: https://opensource.org/licenses/Apache-2.0
+//
+////////////////////////////////////////////////////////////////////////////
+
+using FlashCap.Internal;
+using System;
+using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using Windows.Win32;
+using Windows.Win32.Media.MediaFoundation;
+using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_CONSTANTS;
+using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_FLAG;
+
+namespace FlashCap.Devices;
+
+public sealed class MediaFoundationDevice : CaptureDevice
+{
+    private readonly object sync = new();
+    private readonly string symbolicLink;
+    private readonly MediaFoundationInterop.FormatKey formatKey;
+
+    private FrameProcessor? frameProcessor;
+    private TranscodeFormats transcodeFormat;
+    private IntPtr bitmapHeader;
+    private byte[]? repackBuffer;
+    private CancellationTokenSource? stopSource;
+    private Task captureTask = Task.CompletedTask;
+    private Task interruptTask = Task.CompletedTask;
+    private unsafe IMFSourceReader* activeSourceReader;
+    private bool disposed;
+
+    internal MediaFoundationDevice(
+        string symbolicLink,
+        string name,
+        MediaFoundationInterop.FormatKey formatKey) :
+        base(symbolicLink, name)
+    {
+        this.symbolicLink = symbolicLink;
+        this.formatKey = formatKey;
+    }
+
+    protected override Task OnInitializeAsync(
+        VideoCharacteristics characteristics,
+        TranscodeFormats transcodeFormat,
+        FrameProcessor frameProcessor,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!NativeMethods.GetCompressionAndBitCount(
+            characteristics.PixelFormat, out var compression, out var bitCount))
+        {
+            throw new ArgumentException("FlashCap: Unsupported Media Foundation format.", nameof(characteristics));
+        }
+
+        this.Characteristics = characteristics;
+        this.transcodeFormat = transcodeFormat;
+        this.frameProcessor = frameProcessor;
+        this.bitmapHeader = NativeMethods.AllocateMemory(
+            new IntPtr(MarshalEx.SizeOf<NativeMethods.BITMAPINFOHEADER>()));
+
+        unsafe
+        {
+            var header = (NativeMethods.BITMAPINFOHEADER*)this.bitmapHeader;
+            *header = default;
+            header->biSize = MarshalEx.SizeOf<NativeMethods.BITMAPINFOHEADER>();
+            header->biWidth = characteristics.Width;
+            header->biHeight = characteristics.Height;
+            header->biPlanes = 1;
+            header->biBitCount = bitCount;
+            header->biCompression = compression;
+            header->biSizeImage = header->CalculateImageSize();
+        }
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnDisposeAsync()
+    {
+        if (this.disposed)
+        {
+            return;
+        }
+        this.disposed = true;
+
+        Exception? stopFailure = null;
+        try
+        {
+            await this.OnStopAsync(default).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            stopFailure = exception;
+        }
+        finally
+        {
+            try
+            {
+                if (this.frameProcessor is not null)
+                {
+                    await this.frameProcessor.DisposeAsync().ConfigureAwait(false);
+                    this.frameProcessor = null;
+                }
+            }
+            finally
+            {
+                if (this.bitmapHeader != IntPtr.Zero)
+                {
+                    NativeMethods.FreeMemory(this.bitmapHeader);
+                    this.bitmapHeader = IntPtr.Zero;
+                }
+            }
+        }
+
+        if (stopFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(stopFailure).Throw();
+        }
+    }
+
+    protected override async Task OnStartAsync(CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(this.disposed, this);
+        Task previousCapture;
+        bool alreadyRunning;
+        lock (this.sync)
+        {
+            previousCapture = this.captureTask;
+            alreadyRunning = this.IsRunning &&
+                this.stopSource is { IsCancellationRequested: false };
+        }
+        if (alreadyRunning)
+        {
+            return;
+        }
+        await previousCapture.WaitAsync(ct).ConfigureAwait(false);
+
+        var startup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopSource = new CancellationTokenSource();
+        lock (this.sync)
+        {
+            this.stopSource?.Dispose();
+            this.stopSource = stopSource;
+            this.interruptTask = Task.CompletedTask;
+            this.captureTask = Task.Factory.StartNew(
+                () => this.Capture(startup, stopSource.Token),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+                TaskScheduler.Default);
+        }
+
+        try
+        {
+            await startup.Task.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            await this.OnStopAsync(default).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    protected override async Task OnStopAsync(CancellationToken ct)
+    {
+        this.PrepareStop(out var captureTask, out var interruptTask);
+
+        try
+        {
+            await Task.WhenAll(interruptTask, captureTask).WaitAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (captureTask.IsCompleted)
+            {
+                lock (this.sync)
+                {
+                    if (ReferenceEquals(this.captureTask, captureTask))
+                    {
+                        this.stopSource?.Dispose();
+                        this.stopSource = null;
+                        this.captureTask = Task.CompletedTask;
+                        this.interruptTask = Task.CompletedTask;
+                    }
+                }
+            }
+        }
+    }
+
+    private unsafe void PrepareStop(out Task captureTask, out Task interruptTask)
+    {
+        lock (this.sync)
+        {
+            this.stopSource?.Cancel();
+            captureTask = this.captureTask;
+            if (!captureTask.IsCompleted && this.interruptTask.IsCompleted &&
+                this.activeSourceReader is not null)
+            {
+                var sourceReader = this.activeSourceReader;
+                this.interruptTask = Task.Factory.StartNew(
+                    () => Interrupt(sourceReader),
+                    CancellationToken.None,
+                    TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+                    TaskScheduler.Default);
+            }
+            interruptTask = this.interruptTask;
+        }
+    }
+
+    private unsafe void Capture(TaskCompletionSource startup, CancellationToken stopToken)
+    {
+        IMFActivate* activate = null;
+        IMFMediaSource* mediaSource = null;
+        IMFSourceReader* reader = null;
+        bool started = false;
+        bool startupCompleted = false;
+        try
+        {
+            if (!MediaFoundationInterop.TryInitialize(out started))
+            {
+                throw new InvalidOperationException("FlashCap: Could not initialize Media Foundation.");
+            }
+
+            activate = MediaFoundationInterop.FindActivate(this.symbolicLink);
+            mediaSource = MediaFoundationInterop.ActivateMediaSource(activate);
+            reader = MediaFoundationInterop.CreateSourceReader(mediaSource);
+            var defaultStride = this.ConfigureReader(reader);
+            stopToken.ThrowIfCancellationRequested();
+
+            lock (this.sync)
+            {
+                this.activeSourceReader = reader;
+            }
+            this.IsRunning = true;
+            startupCompleted = true;
+            startup.TrySetResult();
+            this.ReadFrames(reader, defaultStride, stopToken);
+        }
+        catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
+        {
+            if (!startupCompleted)
+            {
+                startup.TrySetCanceled(stopToken);
+            }
+        }
+        catch (Exception exception)
+        {
+            if (!startupCompleted)
+            {
+                startup.TrySetException(exception);
+            }
+            else
+            {
+                MediaFoundationInterop.TraceFailure("capture", exception);
+            }
+        }
+        finally
+        {
+            this.IsRunning = false;
+            Task pendingInterrupt;
+            lock (this.sync)
+            {
+                this.activeSourceReader = null;
+                pendingInterrupt = this.interruptTask;
+            }
+            try
+            {
+                pendingInterrupt.GetAwaiter().GetResult();
+            }
+            catch (Exception exception)
+            {
+                MediaFoundationInterop.TraceFailure("capture interruption", exception);
+            }
+
+            if (reader is null && mediaSource is not null)
+            {
+                _ = mediaSource->Shutdown();
+            }
+            MediaFoundationInterop.Release(reader);
+            if (activate is not null)
+            {
+                _ = activate->ShutdownObject();
+            }
+            MediaFoundationInterop.Release(mediaSource);
+            MediaFoundationInterop.Release(activate);
+            MediaFoundationInterop.Uninitialize(started);
+            if (!startupCompleted)
+            {
+                startup.TrySetException(new InvalidOperationException(
+                    "FlashCap: Media Foundation capture ended during startup."));
+            }
+        }
+    }
+
+    private unsafe int? ConfigureReader(IMFSourceReader* reader)
+    {
+        MediaFoundationInterop.ThrowIfFailed(
+            reader->SetStreamSelection(unchecked((uint)MF_SOURCE_READER_ALL_STREAMS), false),
+            "IMFSourceReader.SetStreamSelection(all)");
+        MediaFoundationInterop.ThrowIfFailed(
+            reader->SetStreamSelection(MediaFoundationInterop.VideoStreamIndex, true),
+            "IMFSourceReader.SetStreamSelection(video)");
+
+        IMFMediaType* mediaType = null;
+        try
+        {
+            MediaFoundationInterop.ThrowIfFailed(
+                reader->GetNativeMediaType(
+                    MediaFoundationInterop.VideoStreamIndex,
+                    this.formatKey.MediaTypeIndex,
+                    &mediaType),
+                "IMFSourceReader.GetNativeMediaType");
+            if (mediaType is null ||
+                !MediaFoundationInterop.TryCreateFormat(
+                    mediaType, this.formatKey.MediaTypeIndex, out var selected) ||
+                !selected.Key.Equals(this.formatKey))
+            {
+                throw new InvalidOperationException(
+                    "FlashCap: The selected Media Foundation format is no longer available.");
+            }
+
+            MediaFoundationInterop.ThrowIfFailed(
+                reader->SetCurrentMediaType(MediaFoundationInterop.VideoStreamIndex, mediaType),
+                "IMFSourceReader.SetCurrentMediaType");
+            return mediaType->GetUINT32(in PInvoke.MF_MT_DEFAULT_STRIDE, out var stride).Succeeded ?
+                unchecked((int)stride) : null;
+        }
+        finally
+        {
+            MediaFoundationInterop.Release(mediaType);
+        }
+    }
+
+    private unsafe void ReadFrames(IMFSourceReader* reader, int? defaultStride, CancellationToken stopToken)
+    {
+        long? firstTimestamp = null;
+        long frameIndex = 0;
+        while (!stopToken.IsCancellationRequested)
+        {
+            uint flags = 0;
+            long timestamp = 0;
+            IMFSample* sample = null;
+            var result = reader->ReadSample(
+                MediaFoundationInterop.VideoStreamIndex,
+                0,
+                null,
+                &flags,
+                &timestamp,
+                &sample);
+            if (result.Failed)
+            {
+                if (stopToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                MediaFoundationInterop.ThrowIfFailed(result, "IMFSourceReader.ReadSample");
+            }
+
+            try
+            {
+                if (stopToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                var readerFlags = (MF_SOURCE_READER_FLAG)flags;
+                if ((readerFlags & (MF_SOURCE_READERF_ERROR |
+                    MF_SOURCE_READERF_ENDOFSTREAM |
+                    MF_SOURCE_READERF_NATIVEMEDIATYPECHANGED |
+                    MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)) != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"FlashCap: Media Foundation capture stream changed state ({readerFlags}).");
+                }
+                if (sample is null || (readerFlags & MF_SOURCE_READERF_STREAMTICK) != 0)
+                {
+                    continue;
+                }
+
+                firstTimestamp ??= timestamp;
+                this.ProcessSample(
+                    sample,
+                    defaultStride,
+                    Math.Max(0, timestamp - firstTimestamp.Value) / 10,
+                    frameIndex++);
+            }
+            finally
+            {
+                MediaFoundationInterop.Release(sample);
+            }
+        }
+    }
+
+    private unsafe void ProcessSample(IMFSample* sample, int? defaultStride, long timestamp, long frameIndex)
+    {
+        IMFMediaBuffer* buffer = null;
+        MediaFoundationInterop.ThrowIfFailed(
+            sample->ConvertToContiguousBuffer(&buffer),
+            "IMFSample.ConvertToContiguousBuffer");
+        if (buffer is null)
+        {
+            throw new InvalidOperationException("FlashCap: Media Foundation returned no sample buffer.");
+        }
+
+        byte* data = null;
+        bool locked = false;
+        try
+        {
+            uint currentLength = 0;
+            MediaFoundationInterop.ThrowIfFailed(
+                buffer->Lock(&data, null, &currentLength),
+                "IMFMediaBuffer.Lock");
+            locked = true;
+            if (data is null || currentLength == 0 || currentLength > int.MaxValue)
+            {
+                throw new InvalidOperationException("FlashCap: Media Foundation returned an invalid frame buffer.");
+            }
+
+            var frame = this.NormalizeFrame(data, checked((int)currentLength), defaultStride);
+            try
+            {
+                if (frame.Pointer != IntPtr.Zero)
+                {
+                    this.frameProcessor!.OnFrameArrived(
+                        this, frame.Pointer, frame.Length, timestamp, frameIndex);
+                }
+                else
+                {
+                    fixed (byte* repacked = this.repackBuffer!)
+                    {
+                        this.frameProcessor!.OnFrameArrived(
+                            this, (IntPtr)repacked, frame.Length, timestamp, frameIndex);
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                MediaFoundationInterop.TraceFailure("frame callback", exception);
+            }
+        }
+        finally
+        {
+            if (locked)
+            {
+                _ = buffer->Unlock();
+            }
+            MediaFoundationInterop.Release(buffer);
+        }
+    }
+
+    private unsafe FrameMemory NormalizeFrame(byte* data, int length, int? defaultStride)
+    {
+        var format = this.Characteristics.PixelFormat;
+        if (format == PixelFormats.JPEG)
+        {
+            return new FrameMemory((IntPtr)data, length);
+        }
+
+        MediaFoundationInterop.FrameLayout layout;
+        try
+        {
+            layout = MediaFoundationInterop.GetFrameLayout(
+                format,
+                this.Characteristics.Width,
+                this.Characteristics.Height,
+                defaultStride,
+                length);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidOperationException(
+                "FlashCap: Media Foundation returned an invalid frame buffer.", exception);
+        }
+
+        if (layout.SourceStride == layout.TargetStride &&
+            (!(format is PixelFormats.RGB15 or PixelFormats.RGB16 or
+                PixelFormats.RGB24 or PixelFormats.RGB32 or PixelFormats.ARGB32) || layout.BottomUp))
+        {
+            return new FrameMemory((IntPtr)data, layout.TargetLength);
+        }
+
+        if (this.repackBuffer is null || this.repackBuffer.Length < layout.TargetLength)
+        {
+            this.repackBuffer = new byte[layout.TargetLength];
+        }
+        var managedBuffer = this.repackBuffer;
+        var reverseRows = !layout.BottomUp &&
+            format is PixelFormats.RGB15 or PixelFormats.RGB16 or
+                PixelFormats.RGB24 or PixelFormats.RGB32 or PixelFormats.ARGB32;
+        MediaFoundationInterop.RepackFrame(
+            new ReadOnlySpan<byte>(data, length),
+            managedBuffer.AsSpan(0, layout.TargetLength),
+            layout,
+            reverseRows);
+        return new FrameMemory(IntPtr.Zero, layout.TargetLength);
+    }
+
+    private static unsafe void Interrupt(IMFSourceReader* reader)
+    {
+        if (!MediaFoundationInterop.TryInitialize(out var started))
+        {
+            return;
+        }
+        try
+        {
+            if (reader is not null)
+            {
+                MediaFoundationInterop.ThrowIfFailed(
+                    reader->Flush(unchecked((uint)MF_SOURCE_READER_ALL_STREAMS)),
+                    "IMFSourceReader.Flush");
+            }
+        }
+        finally
+        {
+            MediaFoundationInterop.Uninitialize(started);
+        }
+    }
+
+    protected override unsafe void OnCapture(
+        IntPtr pData,
+        int size,
+        long timestampMicroseconds,
+        long frameIndex,
+        PixelBuffer buffer)
+    {
+        buffer.CopyIn(
+            this.bitmapHeader,
+            pData,
+            size,
+            timestampMicroseconds,
+            frameIndex,
+            this.transcodeFormat);
+    }
+
+    private readonly struct FrameMemory
+    {
+        internal FrameMemory(IntPtr pointer, int length)
+        {
+            this.Pointer = pointer;
+            this.Length = length;
+        }
+
+        internal IntPtr Pointer { get; }
+        internal int Length { get; }
+    }
+}
+#endif

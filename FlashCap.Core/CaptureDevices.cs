@@ -35,7 +35,11 @@ public class CaptureDevices
         {
             NativeMethods.Platforms.Windows =>
                 new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors().
-                Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors()),
+                Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors())
+#if NET8_0_OR_GREATER
+                .Concat(new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors())
+#endif
+                ,
             NativeMethods.Platforms.Linux =>
                 new V4L2Devices().OnEnumerateDescriptors(),
             NativeMethods.Platforms.MacOS =>
