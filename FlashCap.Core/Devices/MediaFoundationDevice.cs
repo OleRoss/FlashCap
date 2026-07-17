@@ -1,4 +1,4 @@
-#if NET8_0_OR_GREATER
+#if FLASHCAP_MEDIAFOUNDATION
 ////////////////////////////////////////////////////////////////////////////
 //
 // FlashCap - Independent camera capture library.
@@ -20,7 +20,7 @@ using Windows.Win32.Media.MediaFoundation;
 using FlashCap.Internal.MediaFoundation;
 using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_CONSTANTS;
 #if !NET9_0_OR_GREATER
-using Lock = object;
+using Lock = System.Object;
 #endif
 
 namespace FlashCap.Devices;
@@ -131,7 +131,10 @@ public sealed class MediaFoundationDevice : CaptureDevice
 
     protected override async Task OnStartAsync(CancellationToken ct)
     {
-        ObjectDisposedException.ThrowIf(this.disposed, this);
+        if (this.disposed)
+        {
+            throw new ObjectDisposedException(nameof(MediaFoundationDevice));
+        }
         Task previousCapture;
         bool alreadyRunning;
         lock (this.sync)
@@ -144,9 +147,9 @@ public sealed class MediaFoundationDevice : CaptureDevice
         {
             return;
         }
-        await previousCapture.WaitAsync(ct).ConfigureAwait(false);
+        await MediaFoundationHelpers.WaitAsync(previousCapture, ct).ConfigureAwait(false);
 
-        var startup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var startup = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var stopSource = new CancellationTokenSource();
         lock (this.sync)
         {
@@ -162,7 +165,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
 
         try
         {
-            await startup.Task.WaitAsync(ct).ConfigureAwait(false);
+            await MediaFoundationHelpers.WaitAsync(startup.Task, ct).ConfigureAwait(false);
         }
         catch
         {
@@ -177,7 +180,8 @@ public sealed class MediaFoundationDevice : CaptureDevice
 
         try
         {
-            await Task.WhenAll(interruptTask, captureTask).WaitAsync(ct).ConfigureAwait(false);
+            await MediaFoundationHelpers.WaitAsync(Task.WhenAll(interruptTask, captureTask), ct).
+                ConfigureAwait(false);
         }
         finally
         {
@@ -217,7 +221,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
         }
     }
 
-    private unsafe void Capture(TaskCompletionSource startup, CancellationToken stopToken)
+    private unsafe void Capture(TaskCompletionSource<bool> startup, CancellationToken stopToken)
     {
         CaptureSession? session = null;
         bool initialized = false;
@@ -236,7 +240,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
             }
             this.IsRunning = true;
             startupCompleted = true;
-            startup.TrySetResult();
+            startup.TrySetResult(true);
             session.ReadFrames(stopToken, this.OnFrame);
         }
         catch (OperationCanceledException) when (stopToken.IsCancellationRequested)

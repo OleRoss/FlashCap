@@ -1,4 +1,4 @@
-#if NET8_0_OR_GREATER
+#if FLASHCAP_MEDIAFOUNDATION
 ////////////////////////////////////////////////////////////////////////////
 //
 // FlashCap - Independent camera capture library.
@@ -11,7 +11,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Windows.Win32;
@@ -191,9 +190,15 @@ internal static unsafe class MediaFoundationInterop
         {
             mediaSource = ActivateMediaSource(activate);
             reader = CreateSourceReader(mediaSource);
-            return EnumerateFormats(reader)
-                .DistinctBy(format => format.Characteristics)
-                .ToDictionary(format => format.Characteristics, format => format.Key);
+            var formats = new Dictionary<VideoCharacteristics, FormatKey>();
+            foreach (var format in EnumerateFormats(reader))
+            {
+                if (!formats.ContainsKey(format.Characteristics))
+                {
+                    formats.Add(format.Characteristics, format.Key);
+                }
+            }
+            return formats;
         }
         finally
         {

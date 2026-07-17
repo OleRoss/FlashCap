@@ -1,4 +1,4 @@
-#if NET8_0_OR_GREATER
+#if FLASHCAP_MEDIAFOUNDATION
 ////////////////////////////////////////////////////////////////////////////
 //
 // FlashCap - Independent camera capture library.
@@ -8,7 +8,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
-using FlashCap.Internal;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Versioning;

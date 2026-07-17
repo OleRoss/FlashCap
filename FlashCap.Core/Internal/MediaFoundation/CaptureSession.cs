@@ -1,4 +1,4 @@
-#if NET8_0_OR_GREATER
+#if FLASHCAP_MEDIAFOUNDATION
 ////////////////////////////////////////////////////////////////////////////
 //
 // FlashCap - Independent camera capture library.

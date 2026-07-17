@@ -21,9 +21,9 @@ namespace FlashCap;
 /// <summary>
 /// By default, the following backends are considered for <see cref="OnEnumerateDescriptors"/>:
 /// <list type= "bullet">
-/// <item><description><see cref="DirectShowDevices"/> (Win)- Only if <see cref="RuntimeFeature.IsDynamicCodeSupported"/> is true</description></item>
+/// <item><description><see cref="DirectShowDevices"/> (Win)- Only if <c>RuntimeFeature.IsDynamicCodeSupported</c> is true</description></item>
 /// <item><description><see cref="VideoForWindowsDevices"/> (Win)</description></item>
-/// <item><description><see cref="MediaFoundationDevices"/> (Win) - Supported only >= NET8.0 or greater and Windows6.0 or greater</description></item>
+/// <item><description><c>MediaFoundationDevices</c> (Win) - Supported on .NET 5.0 or greater and Windows 6.0 or greater</description></item>
 /// <item><description><see cref="V4L2Devices"/> (Linux)</description></item>
 /// <item><description><see cref="AVFoundationDevices"/> (MacOs)</description></item>
 /// </list>

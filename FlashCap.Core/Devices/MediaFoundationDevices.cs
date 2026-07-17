@@ -1,4 +1,4 @@
-#if NET8_0_OR_GREATER
+#if FLASHCAP_MEDIAFOUNDATION
 ////////////////////////////////////////////////////////////////////////////
 //
 // FlashCap - Independent camera capture library.
@@ -8,10 +8,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
-using FlashCap.Internal;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -32,8 +30,7 @@ public sealed class MediaFoundationDevices(BufferPool defaultBufferPool) : Captu
     {
         if (!OperatingSystem.IsWindows())
         {
-            // The class is guarded by SupportedOSPlatform
-            throw new UnreachableException();
+            throw new PlatformNotSupportedException();
         }
 
         try
