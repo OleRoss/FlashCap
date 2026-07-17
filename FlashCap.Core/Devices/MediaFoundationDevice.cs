@@ -12,18 +12,23 @@ using FlashCap.Internal;
 using System;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Win32;
 using Windows.Win32.Media.MediaFoundation;
 using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_CONSTANTS;
 using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_FLAG;
+#if !NET9_0_OR_GREATER
+using Lock = object;
+#endif
 
 namespace FlashCap.Devices;
 
+[SupportedOSPlatform("windows6.0")]
 public sealed class MediaFoundationDevice : CaptureDevice
 {
-    private readonly object sync = new();
+    private readonly Lock sync = new();
     private readonly string symbolicLink;
     private readonly MediaFoundationInterop.FormatKey formatKey;
 
@@ -92,7 +97,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
         Exception? stopFailure = null;
         try
         {
-            await this.OnStopAsync(default).ConfigureAwait(false);
+            await this.OnStopAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -161,7 +166,7 @@ public sealed class MediaFoundationDevice : CaptureDevice
         }
         catch
         {
-            await this.OnStopAsync(default).ConfigureAwait(false);
+            await this.OnStopAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
     }
@@ -536,16 +541,6 @@ public sealed class MediaFoundationDevice : CaptureDevice
             this.transcodeFormat);
     }
 
-    private readonly struct FrameMemory
-    {
-        internal FrameMemory(IntPtr pointer, int length)
-        {
-            this.Pointer = pointer;
-            this.Length = length;
-        }
-
-        internal IntPtr Pointer { get; }
-        internal int Length { get; }
-    }
+    private readonly record struct FrameMemory(IntPtr Pointer, int Length);
 }
 #endif

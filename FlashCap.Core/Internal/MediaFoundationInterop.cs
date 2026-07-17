@@ -12,7 +12,9 @@ using FlashCap.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Media.MediaFoundation;
@@ -20,73 +22,34 @@ using Windows.Win32.System.Com;
 
 namespace FlashCap.Internal;
 
+[SupportedOSPlatform("windows6.0")]
 internal static unsafe class MediaFoundationInterop
 {
     internal const uint VideoStreamIndex = 0;
 
-    internal readonly struct FormatKey : IEquatable<FormatKey>
+    internal readonly record struct FormatKey(
+        uint MediaTypeIndex,
+        Guid Subtype,
+        int Width,
+        int Height,
+        Fraction FrameRate);
+
+    internal readonly record struct Format(
+        FormatKey Key,
+        VideoCharacteristics Characteristics);
+
+    internal readonly record struct DeviceInfo(
+        string SymbolicLink,
+        string Name,
+        IReadOnlyDictionary<VideoCharacteristics, FormatKey> Formats);
+
+    internal readonly record struct FrameLayout(
+        int RowLength,
+        int Rows,
+        int SourceStride,
+        int TargetStride,
+        bool BottomUp)
     {
-        internal FormatKey(uint mediaTypeIndex, Guid subtype, int width, int height, Fraction frameRate)
-        {
-            this.MediaTypeIndex = mediaTypeIndex;
-            this.Subtype = subtype;
-            this.Width = width;
-            this.Height = height;
-            this.FrameRate = frameRate;
-        }
-
-        internal uint MediaTypeIndex { get; }
-        internal Guid Subtype { get; }
-        internal int Width { get; }
-        internal int Height { get; }
-        internal Fraction FrameRate { get; }
-
-        public bool Equals(FormatKey other) =>
-            this.MediaTypeIndex == other.MediaTypeIndex &&
-            this.Subtype == other.Subtype &&
-            this.Width == other.Width &&
-            this.Height == other.Height &&
-            this.FrameRate == other.FrameRate;
-
-        public override bool Equals(object? obj) => obj is FormatKey other && this.Equals(other);
-
-        public override int GetHashCode() =>
-            HashCode.Combine(this.MediaTypeIndex, this.Subtype, this.Width, this.Height, this.FrameRate);
-    }
-
-    internal readonly struct Format
-    {
-        internal Format(FormatKey key, VideoCharacteristics characteristics)
-        {
-            this.Key = key;
-            this.Characteristics = characteristics;
-        }
-
-        internal FormatKey Key { get; }
-        internal VideoCharacteristics Characteristics { get; }
-    }
-
-    internal readonly struct FrameLayout
-    {
-        internal FrameLayout(
-            int rowLength,
-            int rows,
-            int sourceStride,
-            int targetStride,
-            bool bottomUp)
-        {
-            this.RowLength = rowLength;
-            this.Rows = rows;
-            this.SourceStride = sourceStride;
-            this.TargetStride = targetStride;
-            this.BottomUp = bottomUp;
-        }
-
-        internal int RowLength { get; }
-        internal int Rows { get; }
-        internal int SourceStride { get; }
-        internal int TargetStride { get; }
-        internal bool BottomUp { get; }
         internal int TargetLength => checked(this.TargetStride * this.Rows);
     }
 
@@ -168,6 +131,95 @@ internal static unsafe class MediaFoundationInterop
         }
     }
 
+    internal static DeviceInfo[] EnumerateDevices()
+    {
+        if (!TryInitialize(out var started))
+        {
+            return [];
+        }
+
+        IMFActivate** devices = null;
+        uint count = 0;
+        try
+        {
+            devices = EnumerateDeviceSources(out count);
+            var results = new List<DeviceInfo>(checked((int)count));
+            for (uint index = 0; index < count; index++)
+            {
+                var activate = devices[index];
+                devices[index] = null;
+                if (activate is null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var symbolicLink = GetAllocatedString(
+                        activate,
+                        in PInvoke.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK).Trim();
+                    if (string.IsNullOrEmpty(symbolicLink))
+                    {
+                        continue;
+                    }
+
+                    var name = GetAllocatedString(
+                        activate,
+                        in PInvoke.MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME).Trim();
+                    if (string.IsNullOrEmpty(name))
+                    {
+                        name = "Media Foundation camera";
+                    }
+
+                    var formats = EnumerateDeviceFormats(activate);
+                    if (formats.Count != 0)
+                    {
+                        results.Add(new DeviceInfo(symbolicLink, name, formats));
+                    }
+                }
+                catch (Exception exception)
+                {
+                    TraceFailure("device inspection", exception);
+                }
+                finally
+                {
+                    _ = activate->ShutdownObject();
+                    Release(activate);
+                }
+            }
+            return results.ToArray();
+        }
+        finally
+        {
+            FreeActivateArray(devices, count);
+            Uninitialize(started);
+        }
+    }
+
+    private static IReadOnlyDictionary<VideoCharacteristics, FormatKey> EnumerateDeviceFormats(
+        IMFActivate* activate)
+    {
+        IMFMediaSource* mediaSource = null;
+        IMFSourceReader* reader = null;
+        try
+        {
+            mediaSource = ActivateMediaSource(activate);
+            reader = CreateSourceReader(mediaSource);
+            return EnumerateFormats(reader)
+                .DistinctBy(format => format.Characteristics)
+                .ToDictionary(format => format.Characteristics, format => format.Key);
+        }
+        finally
+        {
+            Release(reader);
+            if (reader is null && mediaSource is not null)
+            {
+                _ = mediaSource->Shutdown();
+            }
+            Release(mediaSource);
+        }
+    }
+
     internal static string GetAllocatedString(IMFActivate* activate, in Guid key)
     {
         PWSTR value = default;
@@ -189,10 +241,10 @@ internal static unsafe class MediaFoundationInterop
 
     internal static IMFMediaSource* ActivateMediaSource(IMFActivate* activate)
     {
-        void* value = null;
         ThrowIfFailed(
-            activate->ActivateObject(in IMFMediaSource.IID_Guid, out value),
-            "IMFActivate.ActivateObject");
+            activate->ActivateObject(in IMFMediaSource.IID_Guid, out var value),
+            "IMFActivate.ActivateObject"
+        );
         if (value is null)
         {
             throw new InvalidOperationException("FlashCap: Media Foundation returned no media source.");

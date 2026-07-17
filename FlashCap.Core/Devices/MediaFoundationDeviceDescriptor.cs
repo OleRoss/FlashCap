@@ -11,11 +11,13 @@
 using FlashCap.Internal;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FlashCap.Devices;
 
+[SupportedOSPlatform("windows6.0")]
 public sealed class MediaFoundationDeviceDescriptor : CaptureDeviceDescriptor
 {
     private readonly string symbolicLink;
