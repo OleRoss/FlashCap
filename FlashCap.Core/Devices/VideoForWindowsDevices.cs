@@ -11,9 +11,11 @@ using FlashCap.Internal;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Runtime.Versioning;
 
 namespace FlashCap.Devices;
 
+[SupportedOSPlatform("windows")]
 public sealed class VideoForWindowsDevices : CaptureDevices
 {
     public VideoForWindowsDevices() :

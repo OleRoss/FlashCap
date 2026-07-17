@@ -24,7 +24,7 @@ using Lock = System.Object;
 
 namespace FlashCap.Devices;
 
-[SupportedOSPlatform("windows6.0")]
+[SupportedOSPlatform("windows6.1")]
 public sealed class MediaFoundationDevice : CaptureDevice
 {
     private readonly Lock sync = new();

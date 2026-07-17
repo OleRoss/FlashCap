@@ -14,12 +14,14 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FlashCap.Devices;
 
 [RequiresDynamicCode("Direct show depends on COM runtime generation and requires dynamic code")]
+[SupportedOSPlatform("windows")]
 public sealed class DirectShowDevice :
     CaptureDevice
 {

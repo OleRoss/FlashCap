@@ -23,7 +23,7 @@ namespace FlashCap;
 /// <list type= "bullet">
 /// <item><description><see cref="DirectShowDevices"/> (windows)- Only if <c>RuntimeFeature.IsDynamicCodeSupported</c> is true</description></item>
 /// <item><description><see cref="VideoForWindowsDevices"/> (windows)</description></item>
-/// <item><description><c>MediaFoundationDevices</c> (windows6.0 or greater) - Supported on net48, netstandard2.0 or greater, .NET 5.0 or greater</description></item>
+/// <item><description><c>MediaFoundationDevices</c> (Windows 7 or greater) - Supported on net48, netstandard2.0 or greater, .NET 5.0 or greater</description></item>
 /// <item><description><see cref="V4L2Devices"/> (linux)</description></item>
 /// <item><description><see cref="AVFoundationDevices"/> (macOs)</description></item>
 /// </list>
@@ -48,6 +48,9 @@ public class CaptureDevices
         {
             case NativeMethods.Platforms.Windows:
             {
+                if (!OperatingSystem.IsWindows())
+                    return ArrayEx.Empty<CaptureDeviceDescriptor>();
+
                 IEnumerable<CaptureDeviceDescriptor> descriptors = [];
 #if NETSTANDARD2_1 || NETCOREAPP3_0_OR_GREATER
                 if (RuntimeFeature.IsDynamicCodeSupported)
@@ -55,7 +58,8 @@ public class CaptureDevices
                     descriptors = new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
                 descriptors = descriptors.Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
 #if FLASHCAP_MEDIAFOUNDATION
-                descriptors = descriptors.Concat(new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
+                if (OperatingSystem.IsWindowsVersionAtLeast(6, 1))
+                    descriptors = descriptors.Concat(new MediaFoundationDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
 #endif
                 return descriptors;
             }

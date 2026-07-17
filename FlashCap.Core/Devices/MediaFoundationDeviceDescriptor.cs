@@ -17,7 +17,7 @@ using FlashCap.Internal.MediaFoundation;
 
 namespace FlashCap.Devices;
 
-[SupportedOSPlatform("windows6.0")]
+[SupportedOSPlatform("windows6.1")]
 public sealed class MediaFoundationDeviceDescriptor : CaptureDeviceDescriptor
 {
     private readonly string symbolicLink;

@@ -8,6 +8,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 using System;
+using System.Runtime.Versioning;
 using System.Threading;
 using Windows.Win32;
 using Windows.Win32.Media.MediaFoundation;
@@ -15,6 +16,7 @@ using static FlashCap.Internal.MediaFoundation.MediaFoundationInterop;
 
 namespace FlashCap.Internal.MediaFoundation;
 
+[SupportedOSPlatform("windows6.1")]
 internal sealed unsafe class CaptureSession : IDisposable
 {
     private IMFActivate* activate;

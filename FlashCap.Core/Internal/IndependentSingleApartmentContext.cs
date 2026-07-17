@@ -14,11 +14,13 @@ using System;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FlashCap.Internal;
 
+[SupportedOSPlatform("windows")]
 internal sealed class IndependentSingleApartmentContext :
     SynchronizationContext, IDisposable
 {

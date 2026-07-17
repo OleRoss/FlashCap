@@ -8,12 +8,14 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FlashCap.Devices;
 
 [RequiresDynamicCode("Direct show depends on COM runtime generation and requires dynamic code")]
+[SupportedOSPlatform("windows")]
 public sealed class DirectShowDeviceDescriptor : CaptureDeviceDescriptor
 {
     private readonly string devicePath;

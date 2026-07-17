@@ -21,7 +21,7 @@ using static FlashCap.Internal.MediaFoundation.MediaFoundationHelpers;
 
 namespace FlashCap.Internal.MediaFoundation;
 
-[SupportedOSPlatform("windows6.0")]
+[SupportedOSPlatform("windows6.1")]
 internal static unsafe class MediaFoundationInterop
 {
     internal const uint VideoStreamIndex = 0;
