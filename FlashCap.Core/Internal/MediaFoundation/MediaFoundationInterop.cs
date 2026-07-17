@@ -363,32 +363,22 @@ internal static unsafe class MediaFoundationInterop
     }
 
     internal static void RepackFrame(
-        byte* source,
-        int sourceLength,
-        byte[] target,
+        ReadOnlySpan<byte> source,
+        Span<byte> target,
         FrameLayout layout,
         bool reverseRows)
     {
-        if (source is null ||
-            (long)layout.SourceStride * layout.Rows > sourceLength ||
-            layout.TargetLength > target.Length)
+        if ((long)layout.SourceStride * layout.Rows > source.Length || layout.TargetLength > target.Length)
         {
             throw new ArgumentException("The frame buffer is truncated.");
         }
 
-        Array.Clear(target, 0, layout.TargetLength);
-        fixed (byte* targetPointer = target)
+        target.Slice(0, layout.TargetLength).Clear();
+        for (var row = 0; row < layout.Rows; row++)
         {
-            for (var row = 0; row < layout.Rows; row++)
-            {
-                var sourceRow = reverseRows ? layout.Rows - row - 1 : row;
-                var targetOffset = row * layout.TargetStride;
-                Buffer.MemoryCopy(
-                    source + sourceRow * layout.SourceStride,
-                    targetPointer + targetOffset,
-                    target.Length - targetOffset,
-                    layout.RowLength);
-            }
+            var sourceRow = reverseRows ? layout.Rows - row - 1 : row;
+            source.Slice(sourceRow * layout.SourceStride, layout.RowLength).
+                CopyTo(target.Slice(row * layout.TargetStride, layout.RowLength));
         }
     }
 

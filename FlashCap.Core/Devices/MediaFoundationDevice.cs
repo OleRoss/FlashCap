@@ -365,9 +365,8 @@ public sealed class MediaFoundationDevice : CaptureDevice
             format is PixelFormats.RGB15 or PixelFormats.RGB16 or
                 PixelFormats.RGB24 or PixelFormats.RGB32 or PixelFormats.ARGB32;
         MediaFoundationInterop.RepackFrame(
-            data,
-            length,
-            managedBuffer,
+            new ReadOnlySpan<byte>(data, length),
+            managedBuffer.AsSpan(0, layout.TargetLength),
             layout,
             reverseRows);
         return new FrameMemory(IntPtr.Zero, layout.TargetLength);

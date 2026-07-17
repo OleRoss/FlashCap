@@ -3,7 +3,6 @@
   "allowMarshaling": false,
   "friendlyOverloads": {
     "enabled": true,
-    "includePointerOverloads": true,
     "comOutPtrGenericOverloads": false
   },
   "useSafeHandles": false,
