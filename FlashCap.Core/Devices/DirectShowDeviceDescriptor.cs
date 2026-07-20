@@ -14,7 +14,9 @@ using System.Threading.Tasks;
 
 namespace FlashCap.Devices;
 
-[RequiresDynamicCode("Direct show depends on COM runtime generation and requires dynamic code")]
+#if NET6_0_OR_GREATER // Remove this when dropping net5.0. Its required because RequiresUnreferencedCode was not allowed on class level in net5.0
+[RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
+#endif
 [SupportedOSPlatform("windows")]
 public sealed class DirectShowDeviceDescriptor : CaptureDeviceDescriptor
 {

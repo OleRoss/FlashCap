@@ -13,6 +13,7 @@ using FlashCap.Devices;
 using FlashCap.Internal;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
@@ -22,7 +23,7 @@ namespace FlashCap;
 /// <summary>
 /// By default, the following backends are considered for <see cref="OnEnumerateDescriptors"/>:
 /// <list type= "bullet">
-/// <item><description><see cref="DirectShowDevices"/> (windows)- Only if <c>RuntimeFeature.IsDynamicCodeSupported</c> is true</description></item>
+/// <item><description><see cref="DirectShowDevices"/> (windows)</description></item>
 /// <item><description><see cref="VideoForWindowsDevices"/> (windows)</description></item>
 /// <item><description><c>MediaFoundationDevices</c> (Windows 7 or greater) - Supported on net48, netstandard2.0 or greater, .NET 5.0 or greater</description></item>
 /// <item><description><see cref="V4L2Devices"/> (linux)</description></item>
@@ -43,15 +44,12 @@ public class CaptureDevices
         DefaultBufferPool = defaultBufferPool;
     }
 
+    [RequiresUnreferencedCode("OnEnumerateDescriptors adds DirectShow which requires unreferenced code. Use platform-specific Devices directly.")]
     protected virtual IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
     {
         if (NativeMethods.IsWindows())
         {
-            IEnumerable<CaptureDeviceDescriptor> descriptors = [];
-#if NETSTANDARD2_1 || NETCOREAPP3_0_OR_GREATER
-            if (RuntimeFeature.IsDynamicCodeSupported)
-#endif
-                descriptors = new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
+            var descriptors = new DirectShowDevices(this.DefaultBufferPool).OnEnumerateDescriptors();
             descriptors = descriptors.Concat(new VideoForWindowsDevices(this.DefaultBufferPool).OnEnumerateDescriptors());
 #if FLASHCAP_MEDIAFOUNDATION
             if (NativeMethods.IsWindowsVersionAtLeast(6, 1))
@@ -70,6 +68,7 @@ public class CaptureDevices
         return ArrayEx.Empty<CaptureDeviceDescriptor>();
     }
 
+    [RequiresUnreferencedCode("OnEnumerateDescriptors adds DirectShow which requires unreferenced code. Use platform-specific Devices directly.")]
     internal IEnumerable<CaptureDeviceDescriptor> InternalEnumerateDescriptors() =>
         this.OnEnumerateDescriptors();
 }

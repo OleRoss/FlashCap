@@ -9,6 +9,7 @@
 
 using FlashCap.Internal;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Runtime.Versioning;
@@ -28,6 +29,7 @@ public sealed class VideoForWindowsDevices : CaptureDevices
     {
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "This backend does not require unreferenced code")]
     protected override IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors() =>
         Enumerable.Range(0, NativeMethods_VideoForWindows.MaxVideoForWindowsDevices).
         Collect(index =>

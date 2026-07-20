@@ -19,7 +19,6 @@ using static FlashCap.Devices.DirectShowDevice;
 
 namespace FlashCap.Internal;
 
-[RequiresDynamicCode("Direct show depends on COM runtime generation and requires dynamic code")]
 [SupportedOSPlatform("windows")]
 [SuppressUnmanagedCodeSecurity]
 internal static class NativeMethods_DirectShow
@@ -163,6 +162,7 @@ internal static class NativeMethods_DirectShow
             }
         }
 
+        [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
         public unsafe IntPtr AllocateAndGetBih()
         {
             if (this.formattype == FORMAT_VideoInfo)
@@ -660,6 +660,7 @@ internal static class NativeMethods_DirectShow
         }
     }
 
+    [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
     public static IEnumerable<IMoniker> EnumerateDeviceMoniker(Guid deviceCategory)
     {
         if (CoCreateInstance(
@@ -764,6 +765,7 @@ internal static class NativeMethods_DirectShow
         public IntPtr pBih =>
             this.pBih_;
 
+        [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
         public unsafe AM_MEDIA_TYPE AllocateFormalMediaType()
         {
             // Copy.
@@ -821,6 +823,7 @@ internal static class NativeMethods_DirectShow
     private static unsafe readonly int videoStreamConfigCapsSize =
         sizeof(VIDEO_STREAM_CONFIG_CAPS);
 
+    [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
     public static bool SetFormat(this IPin pin, VideoMediaFormat format)
     {
         if (pin is IAMStreamConfig streamConfig)
@@ -926,6 +929,7 @@ internal static class NativeMethods_DirectShow
         }
     }
 
+    [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
     public static IGraphBuilder CreateGraphBuilder()
     {
         if (CoCreateInstance(
@@ -944,6 +948,7 @@ internal static class NativeMethods_DirectShow
         }
     }
 
+    [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
     public static ISampleGrabber CreateSampleGrabber()
     {
         // OMG, the sample grabber is deplicated.
@@ -965,6 +970,7 @@ internal static class NativeMethods_DirectShow
         }
     }
 
+    [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
     public static IBaseFilter CreateNullRenderer()
     {
         // OMG, the null renderer is deplicated.
@@ -986,6 +992,7 @@ internal static class NativeMethods_DirectShow
         }
     }
 
+    [RequiresUnreferencedCode("Direct show depends on COM runtime generation and might require unreferenced code.")]
     public static ICaptureGraphBuilder2 CreateCaptureGraphBuilder()
     {
         if (CoCreateInstance(

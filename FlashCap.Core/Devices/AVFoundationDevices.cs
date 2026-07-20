@@ -10,6 +10,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
@@ -32,6 +33,7 @@ public sealed class AVFoundationDevices : CaptureDevices
     {
     }
     
+    [UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "This backend does not require unreferenced code")]
     protected override IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
     {
         if (!NativeMethods.IsMacOS())

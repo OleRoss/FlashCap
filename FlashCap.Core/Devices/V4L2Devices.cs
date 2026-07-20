@@ -11,6 +11,7 @@ using System;
 using FlashCap.Internal;
 using FlashCap.Utilities;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
@@ -189,6 +190,7 @@ public sealed class V4L2Devices : CaptureDevices
         return str;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "This backend does not require unreferenced code")]
     protected override IEnumerable<CaptureDeviceDescriptor> OnEnumerateDescriptors()
     {
         if (!NativeMethods.IsLinux())
