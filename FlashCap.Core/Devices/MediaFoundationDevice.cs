@@ -15,9 +15,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Win32.Media.MediaFoundation;
 using FlashCap.Internal.MediaFoundation;
-using static Windows.Win32.Media.MediaFoundation.MF_SOURCE_READER_CONSTANTS;
 #if !NET9_0_OR_GREATER
 using Lock = System.Object;
 #endif
@@ -37,8 +35,6 @@ public sealed class MediaFoundationDevice : CaptureDevice
     private byte[]? repackBuffer;
     private CancellationTokenSource? stopSource;
     private Task captureTask = Task.CompletedTask;
-    private Task interruptTask = Task.CompletedTask;
-    private unsafe IMFSourceReader* activeSourceReader;
     private bool disposed;
 
     internal MediaFoundationDevice(
@@ -154,7 +150,6 @@ public sealed class MediaFoundationDevice : CaptureDevice
         {
             this.stopSource?.Dispose();
             this.stopSource = stopSource;
-            this.interruptTask = Task.CompletedTask;
             this.captureTask = Task.Factory.StartNew(
                 () => this.Capture(startup, stopSource.Token),
                 CancellationToken.None,
@@ -175,12 +170,11 @@ public sealed class MediaFoundationDevice : CaptureDevice
 
     protected override async Task OnStopAsync(CancellationToken ct)
     {
-        this.PrepareStop(out var captureTask, out var interruptTask);
+        this.PrepareStop(out var captureTask);
 
         try
         {
-            await MediaFoundationHelpers.WaitAsync(Task.WhenAll(interruptTask, captureTask), ct).
-                ConfigureAwait(false);
+            await MediaFoundationHelpers.WaitAsync(captureTask, ct).ConfigureAwait(false);
         }
         finally
         {
@@ -193,35 +187,25 @@ public sealed class MediaFoundationDevice : CaptureDevice
                         this.stopSource?.Dispose();
                         this.stopSource = null;
                         this.captureTask = Task.CompletedTask;
-                        this.interruptTask = Task.CompletedTask;
                     }
                 }
             }
         }
     }
 
-    private unsafe void PrepareStop(out Task captureTask, out Task interruptTask)
+    private void PrepareStop(out Task captureTask)
     {
         lock (this.sync)
         {
             this.stopSource?.Cancel();
             captureTask = this.captureTask;
-            if (!captureTask.IsCompleted && this.interruptTask.IsCompleted &&
-                this.activeSourceReader is not null)
-            {
-                var sourceReader = this.activeSourceReader;
-                this.interruptTask = Task.Factory.StartNew(
-                    () => Interrupt(sourceReader),
-                    CancellationToken.None,
-                    TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
-                    TaskScheduler.Default);
-            }
-            interruptTask = this.interruptTask;
         }
     }
 
     private unsafe void Capture(TaskCompletionSource<bool> startup, CancellationToken stopToken)
     {
+        // Runs synchronously on a dedicated MTA thread so COM initialization,
+        // Media Foundation lifetime, and COM uninitialization remain on the same thread.
         CaptureSession? session = null;
         bool initialized = false;
         bool startupCompleted = false;
@@ -230,17 +214,22 @@ public sealed class MediaFoundationDevice : CaptureDevice
             MediaFoundationInterop.Initialize();
             initialized = true;
 
-            session = CaptureSession.Open(this.symbolicLink, this.formatKey);
-            stopToken.ThrowIfCancellationRequested();
+            session = CaptureSession.Open(this.symbolicLink, this.formatKey, this.OnFrame);
 
-            lock (this.sync)
+            if (!session.Start())
             {
-                this.activeSourceReader = session.SourceReader;
+                stopToken.ThrowIfCancellationRequested();
+                throw new InvalidOperationException(
+                    "FlashCap: The Media Foundation session was stopped before it could start.");
             }
             this.IsRunning = true;
             startupCompleted = true;
             startup.TrySetResult(true);
-            session.ReadFrames(stopToken, this.OnFrame);
+
+            var stopTask = Task.Delay(Timeout.Infinite, stopToken);
+            _ = Task.WaitAny(session.StopRequested, stopTask);
+            session.Stop();
+            session.Completion.GetAwaiter().GetResult();
         }
         catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
         {
@@ -255,6 +244,10 @@ public sealed class MediaFoundationDevice : CaptureDevice
             {
                 startup.TrySetException(exception);
             }
+            else if (session?.FlushFailure is { } flushFailure)
+            {
+                throw flushFailure;
+            }
             else
             {
                 MediaFoundationHelpers.TraceFailure("capture", exception);
@@ -263,21 +256,6 @@ public sealed class MediaFoundationDevice : CaptureDevice
         finally
         {
             this.IsRunning = false;
-            Task pendingInterrupt;
-            lock (this.sync)
-            {
-                this.activeSourceReader = null;
-                pendingInterrupt = this.interruptTask;
-            }
-            try
-            {
-                pendingInterrupt.GetAwaiter().GetResult();
-            }
-            catch (Exception exception)
-            {
-                MediaFoundationHelpers.TraceFailure("capture interruption", exception);
-            }
-
             session?.Dispose();
             if (initialized)
             {
@@ -370,24 +348,6 @@ public sealed class MediaFoundationDevice : CaptureDevice
             layout,
             reverseRows);
         return new FrameMemory(IntPtr.Zero, layout.TargetLength);
-    }
-
-    private static unsafe void Interrupt(IMFSourceReader* reader)
-    {
-        MediaFoundationInterop.Initialize();
-        try
-        {
-            if (reader is not null)
-            {
-                MediaFoundationHelpers.ThrowIfFailed(
-                    reader->Flush(unchecked((uint)MF_SOURCE_READER_ALL_STREAMS)),
-                    "IMFSourceReader.Flush");
-            }
-        }
-        finally
-        {
-            MediaFoundationInterop.Uninitialize();
-        }
     }
 
     protected override void OnCapture(

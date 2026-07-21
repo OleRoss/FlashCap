@@ -212,8 +212,7 @@ internal static unsafe class MediaFoundationInterop
 
     internal static string GetAllocatedString(IMFActivate* activate, in Guid key)
     {
-        PWSTR value = default;
-        var result = activate->GetAllocatedString(in key, out value, out _);
+        var result = activate->GetAllocatedString(in key, out var value, out _);
         if (result.Failed || value.Value is null)
         {
             return string.Empty;
@@ -243,11 +242,29 @@ internal static unsafe class MediaFoundationInterop
     }
 
     internal static IMFSourceReader* CreateSourceReader(IMFMediaSource* mediaSource)
+        => CreateSourceReader(mediaSource, null);
+
+    internal static IMFSourceReader* CreateSourceReader(IMFMediaSource* mediaSource, IUnknown* callback)
     {
         IMFSourceReader* reader = null;
-        ThrowIfFailed(
-            PInvoke.MFCreateSourceReaderFromMediaSource(mediaSource, null, &reader),
-            nameof(PInvoke.MFCreateSourceReaderFromMediaSource));
+        IMFAttributes* attributes = null;
+        try
+        {
+            if (callback is not null)
+            {
+                ThrowIfFailed(PInvoke.MFCreateAttributes(&attributes, 1), nameof(PInvoke.MFCreateAttributes));
+                ThrowIfFailed(
+                    attributes->SetUnknown(in PInvoke.MF_SOURCE_READER_ASYNC_CALLBACK, callback),
+                    "IMFAttributes.SetUnknown(async callback)");
+            }
+            ThrowIfFailed(
+                PInvoke.MFCreateSourceReaderFromMediaSource(mediaSource, attributes, &reader),
+                nameof(PInvoke.MFCreateSourceReaderFromMediaSource));
+        }
+        finally
+        {
+            Release(attributes);
+        }
         if (reader is null)
         {
             throw new InvalidOperationException("FlashCap: Media Foundation returned no source reader.");
