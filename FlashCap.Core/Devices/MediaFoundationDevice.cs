@@ -269,16 +269,16 @@ public sealed class MediaFoundationDevice : CaptureDevice
         }
     }
 
-    private unsafe void OnFrame(
+    internal unsafe void OnFrame(
         byte* data,
         int length,
         int? defaultStride,
         long timestampMicroseconds,
         long frameIndex)
     {
-        var frame = this.NormalizeFrame(data, length, defaultStride);
         try
         {
+            var frame = this.NormalizeFrame(data, length, defaultStride);
             if (this.frameProcessor is null)
             {
                 throw new InvalidOperationException("FlashCap: The frame processor is not initialized.");
