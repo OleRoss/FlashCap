@@ -24,7 +24,8 @@ namespace FlashCap.Internal.MediaFoundation;
 [SupportedOSPlatform("windows6.1")]
 internal static unsafe class MediaFoundationInterop
 {
-    internal const uint VideoStreamIndex = 0;
+    internal const uint VideoStreamIndex =
+        unchecked((uint)MF_SOURCE_READER_CONSTANTS.MF_SOURCE_READER_FIRST_VIDEO_STREAM);
 
     internal readonly record struct FormatKey(
         uint MediaTypeIndex,
