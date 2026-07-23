@@ -50,7 +50,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="RelaxVersioner" Version="3.13.0" PrivateAssets="All" />
+    <PackageReference Include="RelaxVersioner" Version="3.13.0" PrivateAssets="All" Condition="'$(PreviewPackage)' != 'true'" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)' == 'Release'">
